@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroid Deflection Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+        "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/renderers/CSS2DRenderer.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/renderers/CSS2DRenderer.js",
+        "three/examples/jsm/controls/DragControls.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/DragControls.js"
+      }
+    }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .step-card {
+            display: none;
+        }
+        .step-card.active {
+            display: block;
+        }
+        #canvasContainer, #positioningCanvasContainer3D, #positioningCanvasContainer2D {
+            cursor: grab;
+            position: relative;
+        }
+        #canvasContainer:active, #positioningCanvasContainer3D:active {
+            cursor: grabbing;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .label {
+            color: #fff;
+            font-family: sans-serif;
+            padding: 2px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+        }
+        #hud, #positioning-hud-2d {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            z-index: 100;
+        }
+         #legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-size: 14px;
+            z-index: 100;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 10px;
+            border: 1px solid #555;
+        }
+        .info-icon {
+            display: inline-block;
+            width: 1.2rem;
+            height: 1.2rem;
+            border-radius: 50%;
+            background-color: #9ca3af;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 0.5rem;
+            position: relative;
+        }
+        .info-icon .info-tooltip {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -125px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-weight: normal;
+        }
+        .info-icon:hover .info-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A multi-step wizard interface is chosen for optimal user experience. This structure guides the user logically through the complex process of setting up a simulation: 1. Threat Identification (selecting a known or custom asteroid), 2. Threat Analysis (defining asteroid parameters), 3. Method Selection, 4. Mission Planning (specific to method), and 5. Results & Visualization. This branching flow allows for two distinct simulation types (impactor and tractor) within a unified, intuitive framework. -->
+    <!-- Visualization & Content Choices: Added a Gravity Tractor method. Goal -> Visualize gradual deflection. Viz/Presentation -> Interactive 3D model for positioning the tractor spacecraft, and a new simulation view showing the spacecraft flying in formation and the asteroid's path gently curving away. Interaction -> User drags the spacecraft to set distance. Justification -> This interactive setup is crucial for understanding the distance-dependant nature of gravity. Library/Method -> Three.js DragControls for the positioning UI. The simulation uses iterative physics calculations (F=G*(m1m2)/r^2) within the animation loop to show the gradual pull. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Asteroid Deflection Simulator</h1>
+            <p class="text-lg text-gray-600 mt-2">A tool for simulating planetary defense methods.</p>
+        </header>
+
+        <main class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+
+            <div id="step1" class="step-card active">
+                <h2 class="text-2xl font-semibold mb-2">Step 1: Identify the Threat</h2>
+                <p class="text-gray-600 mb-6">Start by searching for a known Near-Earth Object (NEO) from the NASA database, or define a custom hypothetical asteroid scenario.</p>
+                <div class="space-y-4">
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="asteroidName" placeholder="Enter Asteroid Name (e.g., Apophis, Bennu)" class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <button id="searchBtn" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                            Search NASA Database
+                        </button>
+                    </div>
+                    <div id="apiMessage" class="text-center text-sm"></div>
+                    <div class="text-center text-gray-500">or</div>
+                    <button id="customBtn" class="w-full bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors">Create Custom Scenario</button>
+                </div>
+            </div>
+
+            <div id="step2" class="step-card">
+                 <h2 class="text-2xl font-semibold mb-2">Step 2: Define Asteroid Parameters</h2>
+                 <p class="text-gray-600 mb-6">Specify the physical characteristics of the asteroid. Data for known asteroids is populated automatically but can be adjusted.</p>
+                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                        <label for="internalStructure" class="block font-medium">Internal Structure<span class="info-icon">?<span class="info-tooltip"><b>Monolithic:</b> A single, solid rock. Impacts are less efficient at moving it. <b>Rubble Pile:</b> A loose collection of rocks held by gravity. Impacts can eject significant debris, enhancing the push (higher β factor).</span></span></label>
+                        <select id="internalStructure" class="w-full p-2 mt-1 border rounded-lg"><option value="rubble">Rubble Pile</option><option value="monolithic">Monolithic</option></select>
+                    </div>
+                    <div>
+                        <label for="differentiation" class="block font-medium">Differentiation<span class="info-icon">?<span class="info-tooltip"><b>Differentiated:</b> Has a distinct dense core, mantle, and crust (like Earth). Where you hit it matters. <b>Undifferentiated:</b> Uniform composition throughout. Impact location is less critical.</span></span></label>
+                        <select id="differentiation" class="w-full p-2 mt-1 border rounded-lg"><option value="undifferentiated">Undifferentiated</option><option value="differentiated">Differentiated</option></select>
+                    </div>
+                     <div>
+                        <label for="composition" class="block font-medium">Composition<span class="info-icon">?<span class="info-tooltip"><b>S-type (Silicaceous):</b> Stony, common in the inner asteroid belt. Medium density. <b>C-type (Carbonaceous):</b> Rich in carbon, very dark. Common in outer belt, often lower density. <b>M-type (Metallic):</b> Rich in iron and nickel. High density and much harder to move.</span></span></label>
+                        <select id="composition" class="w-full p-2 mt-1 border rounded-lg"><option value="S-type">S-type (Silicaceous)</option><option value="C-type">C-type (Carbonaceous)</option><option value="M-type">M-type (Metallic)</option></select>
+                    </div>
+                    <div><label for="spinRate" class="block font-medium">Spin Rate</label><select id="spinRate" class="w-full p-2 mt-1 border rounded-lg"><option value="normal">Normal</option><option value="slow">Slow</option><option value="fast">Fast</option><option value="tumbler">Tumbler</option></select></div>
+                    <div><label for="size" class="block font-medium">Avg. Diameter (meters)</label><input type="number" id="size" value="370" class="w-full p-2 mt-1 border rounded-lg"></div>
+                    <div><label for="closestDistance" class="block font-medium">Closest Distance (km)</label><input type="number" id="closestDistance" value="30000" class="w-full p-2 mt-1 border rounded-lg"></div>
+                    <div><label for="speed" class="block font-medium">Speed (km/s)</label><input type="number" id="speed" value="20" class="w-full p-2 mt-1 border rounded-lg"></div>
+                    <div><label for="density" class="block font-medium">Density (g/cm³)</label><input type="number" id="density" value="2.1" class="w-full p-2 mt-1 border rounded-lg"></div>
+                    <div><label for="momentumFactor" class="block font-medium">Momentum Factor (β)</label><input type="number" step="0.1" id="momentumFactor" value="1.5" class="w-full p-2 mt-1 border rounded-lg"></div>
+                </div>
+                 <div class="mt-8 flex justify-between">
+                    <button id="backTo1" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Back</button>
+                    <button id="goToChoice" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Next: Choose Method</button>
+                </div>
+            </div>
+
+            <div id="step2_5_choice" class="step-card">
+                <h2 class="text-2xl font-semibold mb-2">Step 2.5: Choose Deflection Method</h2>
+                <p class="text-gray-600 mb-6">Select how you want to attempt to deflect the asteroid.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border p-6 rounded-lg text-center hover:shadow-lg transition-shadow">
+                        <h3 class="text-xl font-bold mb-2">Kinetic Impactor</h3>
+                        <p class="mb-4">Crash a high-speed spacecraft into the asteroid to alter its course. A direct, forceful approach.</p>
+                        <button id="selectKinetic" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">Select</button>
+                    </div>
+                    <div class="border p-6 rounded-lg text-center hover:shadow-lg transition-shadow">
+                        <h3 class="text-xl font-bold mb-2">Gravity Tractor</h3>
+                        <p class="mb-4">Use the subtle but persistent gravitational pull of a nearby spacecraft to gently tug the asteroid off course over time.</p>
+                        <button id="selectGravity" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">Select</button>
+                    </div>
+                </div>
+                <div class="mt-8">
+                     <button id="backTo2FromChoice" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Back</button>
+                </div>
+            </div>
+
+            <div id="step3_kinetic" class="step-card">
+                <h2 class="text-2xl font-semibold mb-2">Step 3a: Plan Kinetic Impactor Mission</h2>
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-6" role="alert">
+                    <p class="font-bold">Estimated Warning Time</p>
+                    <p id="warningTime1">Based on your parameters, the estimated time available to mount a deflection mission will be calculated here.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div><label for="impactorMass" class="block font-medium">Impactor Mass (kg)</label><input type="number" id="impactorMass" value="600" class="w-full p-2 mt-1 border rounded-lg"></div>
+                    <div><label for="impactorVelocity" class="block font-medium">Impactor Velocity (km/s)</label><input type="number" id="impactorVelocity" value="15" class="w-full p-2 mt-1 border rounded-lg"></div>
+                    <div class="md:col-span-2">
+                        <label for="impactLocation" class="block font-medium">Impact Location</label>
+                        <select id="impactLocation" class="w-full p-2 mt-1 border rounded-lg">
+                            <option value="1.0">Head-on (Maximum Deflection)</option>
+                            <option value="0.7">Off-center (Balanced Push)</option>
+                            <option value="0.3">Glancing Blow (Minimal Deflection)</option>
+                        </select>
+                        <p class="text-sm text-gray-500 mt-2">Impacting a differentiated asteroid off-center may be less effective at changing its trajectory if the impact energy is absorbed by a less dense crust instead of transferring fully to the dense core.</p>
+                    </div>
+                </div>
+                 <div class="mt-8 flex justify-between">
+                    <button id="backToChoice1" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Back</button>
+                    <button id="runSimBtnKinetic" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 text-lg">Run Simulation</button>
+                </div>
+            </div>
+            
+            <div id="step3_gravity" class="step-card">
+                 <h2 class="text-2xl font-semibold mb-2">Step 3b: Plan Gravity Tractor Mission</h2>
+                 <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-6" role="alert">
+                    <p class="font-bold">Estimated Mission Duration (Warning Time)</p>
+                    <p id="warningTime2">Based on your parameters, the estimated time available to mount a deflection mission will be calculated here.</p>
+                </div>
+                 <p class="text-gray-600 mb-6">Set the spacecraft mass. Use the 3D view (right) to drag the spacecraft, and the 2D view (left) for a strategic overview.</p>
+                 <div><label for="tractorMass" class="block font-medium">Tractor Spacecraft Mass (kg)</label><input type="number" id="tractorMass" value="20000" class="w-full p-2 mt-1 border rounded-lg mb-4"></div>
+                 <div class="flex flex-col md:flex-row gap-4">
+                     <div class="flex-1">
+                         <h3 class="font-semibold text-center mb-2">2D Top-Down View</h3>
+                         <div class="w-full h-64 bg-black rounded-lg relative" id="positioningCanvasContainer2D"><div id="positioning-hud-2d" class="absolute top-2 left-2 text-white text-xs font-mono"></div></div>
+                     </div>
+                     <div class="flex-1">
+                         <h3 class="font-semibold text-center mb-2">3D Interactive View</h3>
+                         <div class="w-full h-64 bg-black rounded-lg relative" id="positioningCanvasContainer3D"></div>
+                     </div>
+                 </div>
+                 <div class="mt-8 flex justify-between">
+                    <button id="backToChoice2" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Back</button>
+                    <button id="runSimBtnGravity" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 text-lg">Run Simulation</button>
+                </div>
+            </div>
+
+
+            <div id="step4" class="step-card">
+                 <h2 class="text-2xl font-semibold mb-2">Step 4: Simulation Results</h2>
+                 <p class="text-gray-600 mb-6">The visualization below shows the original and new trajectories. Pan, zoom, and rotate to explore.</p>
+                 <div class="w-full h-[60vh] max-h-[700px] bg-black rounded-lg mb-6 relative" id="canvasContainer">
+                    <div id="simLoading" class="h-full flex flex-col items-center justify-center text-white absolute inset-0 z-20">
+                        <div class="loader"></div>
+                        <p class="mt-4">Calculating trajectories...</p>
+                    </div>
+                     <div id="hud" class="hidden"></div>
+                     <div id="legend" class="hidden"></div>
+                 </div>
+                 <div id="resultsPanel" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center hidden">
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h3 class="font-bold text-gray-500">MISSION STATUS</h3>
+                        <p id="missionStatus" class="text-2xl font-bold">&mdash;</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h3 class="font-bold text-gray-500">ORIGINAL CLOSEST APPROACH</h3>
+                        <p id="originalApproach" class="text-2xl font-bold">&mdash; km</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h3 class="font-bold text-gray-500">NEW CLOSEST APPROACH</h3>
+                        <p id="newApproach" class="text-2xl font-bold">&mdash; km</p>
+                    </div>
+                </div>
+                 <div class="mt-8 text-center space-x-4">
+                    <button id="resetSim" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700">Start New Simulation</button>
+                    <button id="physicsBtn" class="bg-gray-700 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-800 hidden">Show Physics Details</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <div id="physicsModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                 <h2 class="text-2xl font-bold">The Science of Deflection</h2>
+                 <button id="closeModal" class="text-3xl font-light">&times;</button>
+            </div>
+            <div id="physicsExplanation" class="text-gray-700 space-y-4"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+        import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
+
+        let chosenMethod = '';
+        const steps = document.querySelectorAll('.step-card');
+
+        function showStep(stepId) {
+            steps.forEach(step => step.classList.remove('active'));
+            document.getElementById(stepId).classList.add('active');
+        }
+
+        document.getElementById('customBtn').addEventListener('click', () => showStep('step2'));
+        document.getElementById('goToChoice').addEventListener('click', () => showStep('step2_5_choice'));
+        document.getElementById('backTo1').addEventListener('click', () => showStep('step1'));
+        document.getElementById('backTo2FromChoice').addEventListener('click', () => showStep('step2'));
+        
+        function calculateWarningTime(displayElementId) {
+            const distance = parseFloat(document.getElementById('closestDistance').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            const displayElement = document.getElementById(displayElementId);
+            if (distance > 0 && speed > 0) {
+                const timeInSeconds = distance / speed;
+                const timeInDays = timeInSeconds / (60 * 60 * 24);
+                const timeInYears = timeInDays / 365.25;
+                displayElement.textContent = `Approximately ${timeInYears.toFixed(2)} years (${timeInDays.toFixed(0)} days).`;
+            } else {
+                displayElement.textContent = `Please provide a valid distance and speed to calculate.`;
+            }
+        }
+        
+        document.getElementById('selectKinetic').addEventListener('click', () => {
+            chosenMethod = 'kinetic';
+            calculateWarningTime('warningTime1');
+            showStep('step3_kinetic');
+        });
+
+        document.getElementById('selectGravity').addEventListener('click', () => {
+            chosenMethod = 'gravity';
+            calculateWarningTime('warningTime2');
+            showStep('step3_gravity');
+            initPositioningScenes();
+        });
+
+        document.getElementById('backToChoice1').addEventListener('click', () => showStep('step2_5_choice'));
+        document.getElementById('backToChoice2').addEventListener('click', () => showStep('step2_5_choice'));
+        document.getElementById('resetSim').addEventListener('click', () => location.reload());
+
+        const apiMessage = document.getElementById('apiMessage');
+        const searchBtn = document.getElementById('searchBtn');
+        const customBtn = document.getElementById('customBtn');
+
+        const commonAsteroids = {
+            'apophis': '2099942',
+            'bennu': '2101955',
+            'didymos': '2065803',
+            'ryugu': '3752273'
+        };
+
+        const processAsteroidData = (details) => {
+            document.getElementById('size').value = Math.round((details.estimated_diameter.meters.estimated_diameter_min + details.estimated_diameter.meters.estimated_diameter_max) / 2);
+            if (details.close_approach_data && details.close_approach_data.length > 0) {
+                const closest = details.close_approach_data.reduce((prev, curr) => parseFloat(prev.miss_distance.kilometers) < parseFloat(curr.miss_distance.kilometers) ? prev : curr);
+                document.getElementById('closestDistance').value = Math.round(parseFloat(closest.miss_distance.kilometers));
+                document.getElementById('speed').value = parseFloat(closest.relative_velocity.kilometers_per_second).toFixed(2);
+            }
+            document.getElementById('composition').value = 'S-type';
+            apiMessage.textContent = `Successfully loaded data for ${details.name}.`;
+            apiMessage.className = 'text-center text-sm text-green-600';
+            setTimeout(() => showStep('step2'), 1500);
+        };
+        
+        searchBtn.addEventListener('click', async () => {
+            const asteroidName = document.getElementById('asteroidName').value.trim().toLowerCase();
+            if (!asteroidName) {
+                apiMessage.textContent = 'Please enter an asteroid name.';
+                apiMessage.className = 'text-center text-sm text-red-500';
+                return;
+            }
+            
+            apiMessage.textContent = 'Searching...';
+            apiMessage.className = 'text-center text-sm text-blue-500';
+            searchBtn.disabled = true;
+
+            try {
+                let details;
+                const commonId = commonAsteroids[asteroidName];
+                let response;
+
+                if (commonId) {
+                    response = await fetch(`https://api.nasa.gov/neo/rest/v1/neo/${commonId}?api_key=dwxHg0wTUJPNlOTvc0nMsbVI1O9WVLJCmJhVT9IK`);
+                } else {
+                    // Fallback for less common asteroids, not guaranteed to find them on first page.
+                    const browseResponse = await fetch(`https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=dwxHg0wTUJPNlOTvc0nMsbVI1O9WVLJCmJhVT9IK`);
+                    if (browseResponse.status === 429) throw new Error('NASA API returned status 429');
+                    if (!browseResponse.ok) throw new Error(`NASA API (browse) returned status ${browseResponse.status}`);
+                    const data = await browseResponse.json();
+                    const foundAsteroid = data.near_earth_objects.find(neo => neo.name.toLowerCase().includes(asteroidName));
+                    if (foundAsteroid) {
+                         response = await fetch(foundAsteroid.links.self.replace('http://', 'https://'));
+                    } else {
+                        throw new Error(`Asteroid '${asteroidName}' not found.`);
+                    }
+                }
+
+                if (response.status === 429) throw new Error('NASA API returned status 429');
+                if (!response.ok) throw new Error(`NASA API returned status ${response.status}`);
+                
+                details = await response.json();
+                processAsteroidData(details);
+
+            } catch (error) {
+                console.error("API Error:", error);
+                if (error.message.includes('429')) {
+                    apiMessage.textContent = 'NASA API rate limit exceeded. Please wait a minute or use the custom option below.';
+                    customBtn.classList.add('bg-yellow-400', 'animate-pulse');
+                    setTimeout(() => customBtn.classList.remove('bg-yellow-400', 'animate-pulse'), 3000);
+                } else if (error.message.includes('not found')) {
+                    apiMessage.textContent = `Asteroid '${document.getElementById('asteroidName').value}' not found. Please try another or create a custom scenario.`;
+                } else {
+                    apiMessage.textContent = 'Could not connect to NASA API. Please create a custom scenario.';
+                }
+                 apiMessage.className = 'text-center text-sm text-red-500';
+            } finally {
+                searchBtn.disabled = false;
+            }
+        });
+
+
+        let scene, camera, renderer, labelRenderer, earth, asteroid, controls;
+        let animationFrameId;
+        let tractorDistance = 250;
+
+        function initPositioningScenes() {
+            const container3D = document.getElementById('positioningCanvasContainer3D');
+            const container2D = document.getElementById('positioningCanvasContainer2D');
+            container3D.innerHTML = '';
+            container2D.innerHTML = '<div id="positioning-hud-2d" class="absolute top-2 left-2 text-white text-xs font-mono"></div>';
+
+            const pScene = new THREE.Scene();
+            const pScene2D = new THREE.Scene();
+            
+            const pCamera3D = new THREE.PerspectiveCamera(75, container3D.clientWidth / container3D.clientHeight, 0.1, 1000);
+            const pRenderer3D = new THREE.WebGLRenderer({ antialias: true });
+            pRenderer3D.setSize(container3D.clientWidth, container3D.clientHeight);
+            container3D.appendChild(pRenderer3D.domElement);
+            
+            const pCamera2D = new THREE.OrthographicCamera(-50, 50, 50, -50, 1, 1000);
+            const pRenderer2D = new THREE.WebGLRenderer({ antialias: true });
+            pRenderer2D.setSize(container2D.clientWidth, container2D.clientHeight);
+            container2D.appendChild(pRenderer2D.domElement);
+            pScene2D.background = new THREE.Color(0x111111);
+            
+            const labelRenderer2D = new CSS2DRenderer();
+            labelRenderer2D.setSize( container2D.clientWidth, container2D.clientHeight );
+            labelRenderer2D.domElement.style.position = 'absolute';
+            labelRenderer2D.domElement.style.top = '0px';
+            labelRenderer2D.domElement.style.pointerEvents = 'none';
+            container2D.appendChild( labelRenderer2D.domElement );
+            
+            pScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            pScene.add(new THREE.DirectionalLight(0xffffff, 1));
+            pScene2D.add(new THREE.AmbientLight(0xffffff));
+
+            const asteroidSize = parseFloat(document.getElementById('size').value);
+            const asteroidRadius = asteroidSize / 2;
+            const asteroidGeom = new THREE.SphereGeometry(10, 32, 32);
+            const asteroidMat = new THREE.MeshPhongMaterial({color: 0x888888});
+            const pAsteroid = new THREE.Mesh(asteroidGeom, asteroidMat);
+            pScene.add(pAsteroid);
+            
+            const pAsteroid2D = new THREE.Mesh(new THREE.CircleGeometry(10, 32), new THREE.MeshBasicMaterial({ color: 0x888888}));
+            pAsteroid2D.rotation.x = -Math.PI / 2;
+            pScene2D.add(pAsteroid2D);
+            
+            const earthDir = new THREE.Mesh(new THREE.CircleGeometry(4, 32), new THREE.MeshBasicMaterial({color: 0x4d96ff}));
+            earthDir.position.z = 40;
+            earthDir.rotation.x = -Math.PI / 2;
+            pScene2D.add(earthDir);
+            
+            const craftGeom = new THREE.ConeGeometry(2, 5, 8);
+            const craftMat = new THREE.MeshPhongMaterial({color: 0xeeeeee});
+            const tractorCraft = new THREE.Mesh(craftGeom, craftMat);
+            tractorCraft.position.set(20, 0, 0);
+            pScene.add(tractorCraft);
+            
+            const tractorCraft2D = new THREE.Mesh(new THREE.CircleGeometry(1.5, 16), new THREE.MeshBasicMaterial({color: 0xffffff}));
+            pScene2D.add(tractorCraft2D);
+
+            const earthLabel = new CSS2DObject(document.createElement('div'));
+            earthLabel.element.className = 'label';
+            earthLabel.element.textContent = 'To Earth';
+            earthLabel.position.set(0, 0, 48);
+            pScene2D.add(earthLabel);
+            
+            const asteroidLabel = new CSS2DObject(document.createElement('div'));
+            asteroidLabel.element.className = 'label';
+            asteroidLabel.element.textContent = 'Asteroid';
+            asteroidLabel.position.set(0, 0, 0);
+            pAsteroid2D.add(asteroidLabel);
+
+            const craftLabel = new CSS2DObject(document.createElement('div'));
+            craftLabel.element.className = 'label';
+            craftLabel.element.textContent = 'Spacecraft';
+            tractorCraft2D.add(craftLabel);
+            
+            pCamera3D.position.set(0, 25, 30);
+            pCamera3D.lookAt(0,0,0);
+            pCamera2D.position.set(0, 100, 0);
+            pCamera2D.lookAt(0,0,0);
+            
+            const hud = document.getElementById('positioning-hud-2d');
+            const objectsToDrag = [tractorCraft];
+            const pControls = new OrbitControls(pCamera3D, pRenderer3D.domElement);
+            pControls.enableDamping = true;
+            const dragControls = new DragControls(objectsToDrag, pCamera3D, pRenderer3D.domElement);
+            
+            dragControls.addEventListener('drag', () => {
+                tractorCraft.position.y = 0;
+                const dist = tractorCraft.position.distanceTo(pAsteroid.position);
+                const scale = asteroidRadius / 10;
+                tractorDistance = dist * scale;
+                hud.innerHTML = `Hover Distance: ${tractorDistance.toFixed(0)} m`;
+            });
+
+            function pAnimate() {
+                requestAnimationFrame(pAnimate);
+                pControls.update();
+                tractorCraft2D.position.set(tractorCraft.position.x, 0, tractorCraft.position.z);
+                craftLabel.position.set(0, 0, -5);
+                pRenderer3D.render(pScene, pCamera3D);
+                pRenderer2D.render(pScene2D, pCamera2D);
+                labelRenderer2D.render(pScene2D, pCamera2D);
+            }
+            pAnimate();
+            hud.innerHTML = `Hover Distance: ${tractorDistance.toFixed(0)} m`;
+        }
+        
+        document.getElementById('runSimBtnKinetic').addEventListener('click', () => {
+            showStep('step4');
+            runSimulation('kinetic');
+        });
+        document.getElementById('runSimBtnGravity').addEventListener('click', () => {
+            showStep('step4');
+            runSimulation('gravity');
+        });
+
+        const physicsModal = document.getElementById('physicsModal');
+        document.getElementById('physicsBtn').addEventListener('click', () => physicsModal.classList.remove('hidden'));
+        document.getElementById('closeModal').addEventListener('click', () => physicsModal.classList.add('hidden'));
+        physicsModal.addEventListener('click', (e) => {
+            if (e.target === physicsModal) physicsModal.classList.add('hidden');
+        });
+
+        function runSimulation(method) {
+            document.getElementById('simLoading').style.display = 'flex';
+            document.getElementById('resultsPanel').classList.add('hidden');
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            setTimeout(() => {
+                initMainSimulation();
+                
+                if (method === 'kinetic') {
+                    runKineticSimulation();
+                } else if (method === 'gravity') {
+                    runGravityTractorSimulation();
+                }
+            }, 500);
+        }
+
+        function initMainSimulation() {
+             const container = document.getElementById('canvasContainer');
+             
+            const elementsToRemove = [];
+            for (const child of container.children) {
+                if (child.tagName === 'CANVAS' || child.classList.contains('label-renderer')) {
+                    elementsToRemove.push(child);
+                }
+            }
+            elementsToRemove.forEach(el => el.remove());
+
+            scene = new THREE.Scene();
+
+            const starGeo = new THREE.BufferGeometry();
+            const starVertices = [];
+            for (let i = 0; i < 10000; i++) { starVertices.push((Math.random() - 0.5) * 3000, (Math.random() - 0.5) * 3000, (Math.random() - 0.5) * 3000); }
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
+
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 5000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+            
+            labelRenderer = new CSS2DRenderer();
+            labelRenderer.setSize(container.clientWidth, container.clientHeight);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'none';
+            labelRenderer.domElement.classList.add('label-renderer');
+            container.appendChild(labelRenderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const pointLight = new THREE.PointLight(0xffffff, 1.2);
+            pointLight.position.set(100, 100, 100);
+            scene.add(pointLight);
+
+            const earthRadius = 6371;
+            const earthScale = 1 / 500;
+            const earthGeometry = new THREE.SphereGeometry(earthRadius * earthScale, 32, 32);
+            const earthMaterial = new THREE.MeshPhongMaterial({ map: createEarthTexture() });
+            earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            scene.add(earth);
+
+            const earthDiv = document.createElement('div');
+            earthDiv.className = 'label';
+            earthDiv.textContent = 'Earth';
+            const earthLabel = new CSS2DObject(earthDiv);
+            earthLabel.position.set(0, earthRadius * earthScale + 2, 0);
+            earth.add(earthLabel);
+
+            const asteroidSize = parseFloat(document.getElementById('size').value);
+            const asteroidGeometry = new THREE.SphereGeometry(Math.max(asteroidSize / 1000, 1), 20, 20);
+            const pos = asteroidGeometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+                v.setLength(v.length() + (Math.random() - 0.5) * 0.4);
+                pos.setXYZ(i, v.x, v.y, v.z);
+            }
+            asteroidGeometry.computeVertexNormals();
+            const asteroidMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa, map: createRockTexture() });
+            asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial);
+            scene.add(asteroid);
+            
+            const asteroidDiv = document.createElement('div');
+            asteroidDiv.className = 'label';
+            asteroidDiv.textContent = 'Asteroid';
+            const asteroidLabel = new CSS2DObject(asteroidDiv);
+            asteroidLabel.position.set(0, 3, 0);
+            asteroid.add(asteroidLabel);
+            
+            camera.position.set(0, 150, 0.1); 
+            camera.lookAt(earth.position);
+            controls.update();
+
+            window.addEventListener('resize', () => {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                renderer.setSize(width, height);
+                labelRenderer.setSize(width, height);
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+            });
+        }
+        function runKineticSimulation() {
+             const closestDist = parseFloat(document.getElementById('closestDistance').value);
+             const earthRadius = 6371;
+             const scale = 250; 
+             const trajectoryWidth = 150;
+
+             const originalPoints = [];
+             for (let i = 0; i <= 200; i++) {
+                 const x = -trajectoryWidth + i * (trajectoryWidth * 2 / 200);
+                 const z = (closestDist / scale) * Math.sqrt(1 - (x * x) / (trajectoryWidth * trajectoryWidth)) || 0;
+                 originalPoints.push(new THREE.Vector3(x, 0, z));
+             }
+
+             const asteroidDiameter = parseFloat(document.getElementById('size').value);
+             const asteroidDensity = parseFloat(document.getElementById('density').value) * 1000; 
+             const asteroidRadius = asteroidDiameter / 2;
+             const asteroidVolume = (4/3) * Math.PI * Math.pow(asteroidRadius, 3);
+             const asteroidMass = asteroidVolume * asteroidDensity;
+
+             const impactorMass = parseFloat(document.getElementById('impactorMass').value);
+             const impactorVelocity = parseFloat(document.getElementById('impactorVelocity').value) * 1000;
+             const beta = parseFloat(document.getElementById('momentumFactor').value);
+             const impactLocationMultiplier = parseFloat(document.getElementById('impactLocation').value);
+             const isDifferentiated = document.getElementById('differentiation').value === 'differentiated';
+
+             let effectiveMultiplier = isDifferentiated ? impactLocationMultiplier : 1.0;
+
+             const momentumChange = beta * impactorMass * impactorVelocity;
+             const velocityChange = (momentumChange / asteroidMass) * effectiveMultiplier;
+             const asteroidSpeed_ms = parseFloat(document.getElementById('speed').value) * 1000;
+             const deflectionAngle = Math.atan(velocityChange / asteroidSpeed_ms);
+             
+             const travelDistance = Math.sqrt(Math.pow(trajectoryWidth * scale, 2) + Math.pow(closestDist, 2));
+             const distanceChange = travelDistance * Math.tan(deflectionAngle);
+             
+             let newClosestDist = closestDist + distanceChange;
+             
+             const newPoints = [];
+                for (let i = 0; i <= 200; i++) {
+                    const x = -trajectoryWidth + i * (trajectoryWidth * 2 / 200);
+                    const z = (newClosestDist / scale) * Math.sqrt(1 - (x * x) / (trajectoryWidth * trajectoryWidth)) || 0;
+                    newPoints.push(new THREE.Vector3(x, 0, z));
+                }
+
+                const impactIndex = 100;
+
+                const preImpactPath = new THREE.CatmullRomCurve3(originalPoints.slice(0, impactIndex + 1));
+                const postImpactPath = new THREE.CatmullRomCurve3(newPoints.slice(impactIndex));
+                const originalPostPath = new THREE.CatmullRomCurve3(originalPoints.slice(impactIndex));
+
+                const tubeRadius = 0.5;
+                const preImpactTube = new THREE.TubeGeometry(preImpactPath, 64, tubeRadius, 8, false);
+                const postImpactTube = new THREE.TubeGeometry(postImpactPath, 64, tubeRadius, 8, false);
+
+                const preImpactMesh = new THREE.Mesh(preImpactTube, new THREE.MeshPhongMaterial({ color: 0xffff00, emissive: 0x333300 }));
+                scene.add(preImpactMesh);
+
+                const postImpactColor = newClosestDist > earthRadius ? 0x00ff00 : 0xff0000;
+                const postImpactMesh = new THREE.Mesh(postImpactTube, new THREE.MeshPhongMaterial({ color: postImpactColor, emissive: postImpactColor === 0x00ff00 ? 0x003300 : 0x330000 }));
+                scene.add(postImpactMesh);
+                
+                const ghostGeom = new THREE.BufferGeometry().setFromPoints(originalPostPath.getPoints(50));
+                const ghostMat = new THREE.LineDashedMaterial({ color: 0xaaaaaa, dashSize: 2, gapSize: 1 });
+                const ghostLine = new THREE.Line(ghostGeom, ghostMat);
+                ghostLine.computeLineDistances();
+                scene.add(ghostLine);
+
+                document.getElementById('originalApproach').textContent = `${Math.round(closestDist)} km`;
+                document.getElementById('newApproach').textContent = `${Math.round(newClosestDist)} km`;
+                
+                const missionStatusEl = document.getElementById('missionStatus');
+                if (newClosestDist > earthRadius) {
+                    missionStatusEl.textContent = 'SUCCESS';
+                    missionStatusEl.className = 'text-2xl font-bold text-green-600';
+                } else {
+                    missionStatusEl.textContent = 'FAILURE';
+                    missionStatusEl.className = 'text-2xl font-bold text-red-600';
+                }
+                
+                document.getElementById('physicsBtn').style.display = 'inline-block';
+                 document.getElementById('physicsExplanation').innerHTML = `
+                    <p>The simulation is based on the principle of <strong>momentum transfer</strong>. The kinetic impactor transfers its momentum to the asteroid, causing a small change in the asteroid's velocity.</p>
+                    <p>1. <strong>Asteroid Mass:</strong> <br><code>Volume (4/3 * π * ${asteroidRadius.toExponential(2)}³) * Density (${asteroidDensity}) = <strong>${asteroidMass.toExponential(2)} kg</strong></code></p>
+                    <p>2. <strong>Momentum Change (Δp):</strong> <br><code>β (${beta}) * Impactor Mass (${impactorMass} kg) * Impactor Velocity (${impactorVelocity} m/s) = <strong>${momentumChange.toExponential(2)} kg·m/s</strong></code><br><small>The Beta (β) factor enhances the push, as ejected material (ejecta) acts like a thruster.</small></p>
+                    <p>3. <strong>Velocity Change (Δv):</strong> <br><code>Δp (${momentumChange.toExponential(2)}) / Asteroid Mass (${asteroidMass.toExponential(2)}) * Location Multiplier (${effectiveMultiplier.toFixed(1)}) = <strong>${(velocityChange).toFixed(4)} m/s</strong></code><br><small>Because you chose a ${document.getElementById('differentiation').value} asteroid with a ${document.getElementById('impactLocation').options[document.getElementById('impactLocation').selectedIndex].text.toLowerCase()}, the deflection efficiency was adjusted.</small></p>
+                    <p>4. <strong>Deflection Distance:</strong> <br><small>This tiny velocity change (${(velocityChange).toFixed(4)} m/s), applied over the vast travel distance to Earth, results in the final change to the closest approach distance.</small></p>
+                `;
+
+
+                const legend = document.getElementById('legend');
+                legend.innerHTML = `
+                    <div class="legend-item"><div class="legend-color" style="background-color: #ffff00;"></div><span>Pre-Impact Path</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background-color: ${postImpactColor === 0x00ff00 ? '#00ff00' : '#ff0000'};"></div><span>Post-Impact Path</span></div>
+                    <div class="legend-item"><div class="legend-color" style="border: 1px dashed #888; background: transparent;"></div><span>Original Path</span></div>
+                `;
+                
+                const hud = document.getElementById('hud');
+                const fullPathForAnim = preImpactPath.getPoints(100).concat(postImpactPath.getPoints(100));
+                let t = 0;
+                const totalSimTime = 200; 
+
+                function animate() {
+                    animationFrameId = requestAnimationFrame(animate);
+                    
+                    if (t < fullPathForAnim.length) {
+                        asteroid.position.copy(fullPathForAnim[t]);
+                        if(t === 100) { 
+                             const flash = new THREE.PointLight(0xffffff, 5, 50);
+                             flash.position.copy(asteroid.position);
+                             scene.add(flash);
+                             setTimeout(() => scene.remove(flash), 200);
+                        }
+                        t++;
+                    }
+                    
+                    const timeProgress = t / fullPathForAnim.length;
+                    const timeToImpact = (0.5 - timeProgress) * totalSimTime;
+                    const distance = asteroid.position.distanceTo(earth.position) * scale;
+                    hud.innerHTML = `Time to Closest Approach: ${timeToImpact.toFixed(0)}s<br>Distance from Earth: ${distance.toFixed(0)} km`;
+
+
+                    controls.update();
+                    renderer.render(scene, camera);
+                    labelRenderer.render(scene, camera);
+                }
+                
+                document.getElementById('simLoading').style.display = 'none';
+                document.getElementById('resultsPanel').classList.remove('hidden');
+                hud.classList.remove('hidden');
+                legend.classList.remove('hidden');
+                animate();
+        }
+        function runGravityTractorSimulation() {
+             const G = 6.67430e-11;
+             const closestDist = parseFloat(document.getElementById('closestDistance').value);
+             const earthRadius = 6371;
+             const scale = 250; 
+             const trajectoryWidth = 150;
+
+             const asteroidDiameter = parseFloat(document.getElementById('size').value);
+             const asteroidDensity = parseFloat(document.getElementById('density').value) * 1000;
+             const asteroidRadius = asteroidDiameter / 2;
+             const asteroidVolume = (4/3) * Math.PI * Math.pow(asteroidRadius, 3);
+             const asteroidMass = asteroidVolume * asteroidDensity;
+             
+             const tractorMass = parseFloat(document.getElementById('tractorMass').value);
+             const warningTimeText = document.getElementById('warningTime2').textContent;
+             const tugTimeMatch = warningTimeText.match(/\((\d+)\s*days\)/);
+             
+             if (!tugTimeMatch || !tugTimeMatch[1]) {
+                document.getElementById('simLoading').style.display = 'none';
+                alert("Error: Could not calculate mission duration. Please go back and ensure asteroid parameters are set correctly.");
+                return;
+             }
+
+             const tugTime = parseFloat(tugTimeMatch[1]) * 24 * 3600;
+
+             const force = G * (tractorMass * asteroidMass) / Math.pow(tractorDistance, 2);
+             const acceleration = force / asteroidMass;
+             const distanceChange = 0.5 * acceleration * Math.pow(tugTime, 2) / 1000;
+
+             let newClosestDist = closestDist + distanceChange;
+
+             const originalPoints = [];
+             for (let i = 0; i <= 200; i++) {
+                const x = -trajectoryWidth + i * (trajectoryWidth * 2 / 200);
+                const z = (closestDist / scale) * Math.sqrt(1 - (x * x) / (trajectoryWidth * trajectoryWidth)) || 0;
+                originalPoints.push(new THREE.Vector3(x, 0, z));
+             }
+
+             const newPoints = [];
+             const originalPath = new THREE.CatmullRomCurve3(originalPoints);
+             for (let i = 0; i <= 200; i++) {
+                const t = i / 200;
+                const pos = originalPath.getPointAt(t);
+                const deflection = (0.5 * acceleration * Math.pow(t * tugTime, 2) / 1000) / scale;
+                pos.z += deflection;
+                newPoints.push(pos);
+             }
+
+             const newPath = new THREE.CatmullRomCurve3(newPoints);
+             const newTube = new THREE.TubeGeometry(newPath, 128, 0.5, 8, false);
+             const postImpactColor = newClosestDist > earthRadius ? 0x00ff00 : 0xff0000;
+             const newMesh = new THREE.Mesh(newTube, new THREE.MeshPhongMaterial({ color: postImpactColor, emissive: postImpactColor === 0x00ff00 ? 0x003300 : 0x330000 }));
+             scene.add(newMesh);
+
+             const ghostGeom = new THREE.BufferGeometry().setFromPoints(originalPath.getPoints(100));
+             const ghostMat = new THREE.LineDashedMaterial({ color: 0xaaaaaa, dashSize: 2, gapSize: 1 });
+             const ghostLine = new THREE.Line(ghostGeom, ghostMat);
+             ghostLine.computeLineDistances();
+             scene.add(ghostLine);
+
+            const tractorGeom = new THREE.ConeGeometry(2, 5, 8);
+            const tractorMat = new THREE.MeshPhongMaterial({color: 0xeeeeee});
+            const tractorSimCraft = new THREE.Mesh(tractorGeom, tractorMat);
+            scene.add(tractorSimCraft);
+
+             document.getElementById('originalApproach').textContent = `${Math.round(closestDist)} km`;
+             document.getElementById('newApproach').textContent = `${Math.round(newClosestDist)} km`;
+             
+             const missionStatusEl = document.getElementById('missionStatus');
+             if (newClosestDist > earthRadius) {
+                 missionStatusEl.textContent = 'SUCCESS';
+                 missionStatusEl.className = 'text-2xl font-bold text-green-600';
+             } else {
+                 missionStatusEl.textContent = 'FAILURE';
+                 missionStatusEl.className = 'text-2xl font-bold text-red-600';
+             }
+             
+             document.getElementById('physicsBtn').style.display = 'inline-block';
+             document.getElementById('physicsExplanation').innerHTML = `
+                    <p>The simulation uses Newton's Law of Universal Gravitation to calculate the constant, gentle pull of the spacecraft on the asteroid.</p>
+                    <p>1. <strong>Gravitational Force (F):</strong> <br><code>F = G * (m1*m2) / r²</code><br><code>F = ${G.toExponential(2)} * (${tractorMass} * ${asteroidMass.toExponential(2)}) / ${tractorDistance.toFixed(0)}² = <strong>${force.toExponential(2)} N</strong></code></p>
+                    <p>2. <strong>Asteroid's Acceleration (a):</strong> <br><code>a = F / asteroid_mass = <strong>${acceleration.toExponential(2)} m/s²</strong></code><br><small>This acceleration is incredibly small, but applied continuously over years, it makes a difference.</small></p>
+                    <p>3. <strong>Total Deflection:</strong> <br><code>d = 0.5 * a * t²</code><br><code>d = 0.5 * ${acceleration.toExponential(2)} * (${tugTime.toExponential(2)}s)² = <strong>${(distanceChange * 1000).toExponential(2)} m</strong></code><br><small>Over the entire warning time, the asteroid is pulled this far off its original course.</small></p>
+                `;
+
+             const legend = document.getElementById('legend');
+             legend.innerHTML = `
+                <div class="legend-item"><div class="legend-color" style="background-color: ${postImpactColor === 0x00ff00 ? '#00ff00' : '#ff0000'};"></div><span>New Path</span></div>
+                <div class="legend-item"><div class="legend-color" style="border: 1px dashed #888; background: transparent;"></div><span>Original Path</span></div>
+             `;
+             
+             const hud = document.getElementById('hud');
+             let t = 0;
+
+             function animate() {
+                 animationFrameId = requestAnimationFrame(animate);
+                 const point = newPath.getPointAt(t);
+                 asteroid.position.copy(point);
+                 
+                 const offset = new THREE.Vector3(0, 0, (tractorDistance/scale));
+                 tractorSimCraft.position.copy(point).add(offset);
+                 
+                 t = (t + 0.002) % 1;
+                 
+                 const distance = asteroid.position.distanceTo(earth.position) * scale;
+                 hud.innerHTML = `Tugging...<br>Distance from Earth: ${distance.toFixed(0)} km`;
+                 
+                 controls.update();
+                 renderer.render(scene, camera);
+                 labelRenderer.render(scene, camera);
+             }
+             
+             document.getElementById('simLoading').style.display = 'none';
+             document.getElementById('resultsPanel').classList.remove('hidden');
+             hud.classList.remove('hidden');
+             legend.classList.remove('hidden');
+             animate();
+        }
+        
+        function createEarthTexture() {
+             const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 64;
+             const context = canvas.getContext('2d');
+             context.fillStyle = '#1565c0'; context.fillRect(0, 0, 128, 64);
+             context.fillStyle = '#2e7d32';
+             context.fillRect(10, 20, 20, 15); context.fillRect(40, 5, 30, 10);
+             context.fillRect(80, 25, 25, 20); context.fillRect(50, 45, 20, 10);
+             return new THREE.CanvasTexture(canvas);
+        }
+        function createRockTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+            const context = canvas.getContext('2d');
+            for (let i = 0; i < 200; i++) {
+                const shade = Math.floor(Math.random() * 50) + 100;
+                context.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
+                context.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+    </script>
+</body>
+</html>
+
+

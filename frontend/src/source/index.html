@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Asteroid Impact Casualty Simulation</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="simulation-container">
+        <!-- Left Panel - Parameter Controls -->
+        <div class="control-panel">
+            <h2><i class="fas fa-meteor"></i> Asteroid Parameters</h2>
+            
+            <div class="parameter-group">
+                <label for="diameter-slider" class="parameter-label">
+                    <i class="fas fa-circle"></i> Diameter: <span id="diameter-value">100</span> m
+                </label>
+                <input type="range" id="diameter-slider" class="parameter-slider" 
+                       min="1" max="1000" value="100" step="1">
+                <div class="range-labels">
+                    <span>1m</span>
+                    <span>1000m</span>
+                </div>
+            </div>
+
+            <div class="parameter-group">
+                <label for="density-select" class="parameter-label">
+                    <i class="fas fa-weight-hanging"></i> Asteroid Type
+                </label>
+                <select id="density-select" class="form-control">
+                    <option value="500">Comet (500 kg/m³)</option>
+                    <option value="1500">Carbonaceous (1,500 kg/m³)</option>
+                    <option value="2700" selected>Stony (2,700 kg/m³)</option>
+                    <option value="8000">Iron (8,000 kg/m³)</option>
+                </select>
+            </div>
+
+            <div class="parameter-group">
+                <label for="velocity-slider" class="parameter-label">
+                    <i class="fas fa-tachometer-alt"></i> Impact Velocity: <span id="velocity-value">20</span> km/s
+                </label>
+                <input type="range" id="velocity-slider" class="parameter-slider" 
+                       min="11" max="72" value="20" step="1">
+                <div class="range-labels">
+                    <span>11 km/s</span>
+                    <span>72 km/s</span>
+                </div>
+            </div>
+
+            <div class="parameter-group">
+                <label for="angle-slider" class="parameter-label">
+                    <i class="fas fa-angle-down"></i> Impact Angle: <span id="angle-value">45</span>°
+                </label>
+                <input type="range" id="angle-slider" class="parameter-slider" 
+                       min="15" max="90" value="45" step="1">
+                <div class="range-labels">
+                    <span>15°</span>
+                    <span>90°</span>
+                </div>
+            </div>
+
+            <div class="parameter-group">
+                <label for="target-select" class="parameter-label">
+                    <i class="fas fa-globe"></i> Target Type
+                </label>
+                <select id="target-select" class="form-control">
+                    <option value="2500">Sedimentary Rock</option>
+                    <option value="2750" selected>Crystalline Rock</option>
+                    <option value="1000">Ocean</option>
+                </select>
+            </div>
+
+            <!-- Water Depth Parameter (shown only for Ocean target) -->
+            <div class="parameter-group" id="water-depth-group" style="display: none;">
+                <label for="water-depth-slider" class="parameter-label">
+                    <i class="fas fa-water"></i> Water Depth: <span id="water-depth-value">2000</span> m
+                </label>
+                <input type="range" id="water-depth-slider" class="parameter-slider" 
+                       min="10" max="6000" value="2000" step="10">
+                <div class="range-labels">
+                    <span>10m</span>
+                    <span>6000m</span>
+                </div>
+            </div>
+
+            <!-- Population Analysis Settings -->
+            <div class="parameter-group population-settings">
+                <h3><i class="fas fa-users"></i> Population Analysis</h3>
+                
+                <label for="time-of-day-select" class="parameter-label">
+                    <i class="fas fa-clock"></i> Time of Day
+                </label>
+                <select id="time-of-day-select" class="form-control">
+                    <option value="1.0" selected>Daytime (100% density)</option>
+                    <option value="0.8">Evening (80% density)</option>
+                    <option value="0.6">Nighttime (60% density)</option>
+                    <option value="1.2">Rush hour (120% density)</option>
+                </select>
+
+                <div class="population-toggle">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="population-overlay-toggle" checked>
+                        Show population density overlay
+                    </label>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="select-location-btn" class="btn btn--primary">
+                    <i class="fas fa-crosshairs"></i> Select Impact Location
+                </button>
+                <button id="calculate-btn" class="btn btn--secondary" disabled>
+                    <i class="fas fa-calculator"></i> Calculate Effects & Casualties
+                </button>
+                <button id="reset-btn" class="btn btn--outline">
+                    <i class="fas fa-undo"></i> Reset
+                </button>
+            </div>
+
+            <div class="impact-location" id="impact-location" style="display: none;">
+                <h3><i class="fas fa-map-marker-alt"></i> Impact Location</h3>
+                <p id="coordinates-display"></p>
+                <div class="population-info" id="population-info">
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-users"></i> Population Density:</span>
+                        <span class="info-value" id="population-density">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-map-marked-alt"></i> Location Type:</span>
+                        <span class="info-value" id="location-type">-</span>
+                    </div>
+                </div>
+                <div id="ocean-indicator" class="ocean-info" style="display: none;">
+                    <i class="fas fa-water"></i> Ocean Impact - Tsunami modeling active
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel - Interactive Map -->
+        <div class="map-panel">
+            <div class="map-header">
+                <h2><i class="fas fa-globe-americas"></i> Enhanced Impact & Casualty Simulation</h2>
+                <div class="map-status" id="map-status">Click "Select Impact Location" then click on the map</div>
+            </div>
+            <div id="map" class="impact-map"></div>
+            
+            <!-- Effect Zone Toggles -->
+            <div class="effect-toggles" id="effect-toggles" style="display: none;">
+                <h3><i class="fas fa-layer-group"></i> Effect Zones</h3>
+                <div class="toggle-grid">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="crater-toggle" checked>
+                        <span class="zone-indicator crater-zone"></span>
+                        Crater Formation
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="fireball-toggle" checked>
+                        <span class="zone-indicator fireball-zone"></span>
+                        Fireball/Thermal
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="airblast-toggle" checked>
+                        <span class="zone-indicator airblast-zone"></span>
+                        Air Blast Wave
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="ejecta-toggle" checked>
+                        <span class="zone-indicator ejecta-zone"></span>
+                        Ejecta Deposition
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="seismic-toggle" checked>
+                        <span class="zone-indicator seismic-zone"></span>
+                        Seismic Shaking
+                    </label>
+                    <!-- Tsunami zones (shown only for ocean impacts) -->
+                    <label class="toggle-item tsunami-toggles" id="tsunami-toggle-container" style="display: none;">
+                        <input type="checkbox" id="tsunami-toggle" checked>
+                        <span class="zone-indicator tsunami-zone"></span>
+                        Tsunami Waves
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Results with Casualties -->
+        <div class="results-panel">
+            <div class="results-tabs">
+                <button id="physical-tab" class="tab-button active">
+                    <i class="fas fa-meteor"></i> Physical Effects
+                </button>
+                <button id="casualties-tab" class="tab-button">
+                    <i class="fas fa-skull-crossbones"></i> Casualties
+                </button>
+            </div>
+            
+            <div class="results-content" id="results-content">
+                <div class="no-results">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Select an impact location and calculate effects to view detailed results and casualty estimates.</p>
+                </div>
+            </div>
+
+            <!-- Physical Effects Results -->
+            <div class="tab-content" id="physical-results" style="display: none;">
+                <div class="result-section">
+                    <h3><i class="fas fa-bolt"></i> Impact Energy</h3>
+                    <div class="result-item">
+                        <span class="result-label">Kinetic Energy:</span>
+                        <span class="result-value" id="kinetic-energy">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">TNT Equivalent:</span>
+                        <span class="result-value" id="tnt-equivalent">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3><i class="fas fa-circle"></i> Crater Formation</h3>
+                    <div class="result-item">
+                        <span class="result-label">Transient Diameter:</span>
+                        <span class="result-value" id="transient-diameter">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Final Diameter:</span>
+                        <span class="result-value" id="final-diameter">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Depth:</span>
+                        <span class="result-value" id="crater-depth">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3><i class="fas fa-fire"></i> Thermal Effects</h3>
+                    <div class="result-item">
+                        <span class="result-label">Fireball Radius:</span>
+                        <span class="result-value" id="fireball-radius">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Thermal Range:</span>
+                        <span class="result-value" id="thermal-range">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3><i class="fas fa-wave-square"></i> Seismic Effects</h3>
+                    <div class="result-item">
+                        <span class="result-label">Magnitude:</span>
+                        <span class="result-value" id="seismic-magnitude">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Shaking Range:</span>
+                        <span class="result-value" id="seismic-range">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3><i class="fas fa-wind"></i> Air Blast</h3>
+                    <div class="result-item">
+                        <span class="result-label">Overpressure Range:</span>
+                        <span class="result-value" id="airblast-range">-</span>
+                    </div>
+                </div>
+
+                <!-- Tsunami Results Section (shown only for ocean impacts) -->
+                <div class="result-section tsunami-results" id="tsunami-results" style="display: none;">
+                    <h3><i class="fas fa-water"></i> Tsunami Effects</h3>
+                    <div class="result-item">
+                        <span class="result-label">Max Rim Wave Height:</span>
+                        <span class="result-value" id="rim-wave-height">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Max Collapse Wave Height:</span>
+                        <span class="result-value" id="collapse-wave-height">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Wave Speed (Deep Water):</span>
+                        <span class="result-value" id="wave-speed">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Coastal Arrival Time:</span>
+                        <span class="result-value" id="arrival-time">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3><i class="fas fa-clock"></i> Recurrence</h3>
+                    <div class="result-item">
+                        <span class="result-label">Average Interval:</span>
+                        <span class="result-value" id="recurrence-interval">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Casualty Results -->
+            <div class="tab-content" id="casualty-results" style="display: none;">
+                <div class="casualty-summary">
+                    <div class="total-casualties">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Total Estimated Casualties</h3>
+                        <div class="casualty-number" id="total-casualties">-</div>
+                        <div class="uncertainty-range">
+                            ± <span id="casualty-uncertainty">-</span> (uncertainty)
+                        </div>
+                    </div>
+                    
+                    <div class="population-summary">
+                        <div class="summary-item">
+                            <span class="summary-label">Population Exposed:</span>
+                            <span class="summary-value" id="population-exposed">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Affected Area:</span>
+                            <span class="summary-value" id="affected-area">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Average Density:</span>
+                            <span class="summary-value" id="average-density">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="casualty-breakdown">
+                    <h3><i class="fas fa-chart-pie"></i> Casualty Breakdown by Effect</h3>
+                    
+                    <div class="casualty-zone crater-casualties">
+                        <div class="zone-header">
+                            <span class="zone-indicator crater-zone"></span>
+                            <h4>Crater Zone (100% mortality)</h4>
+                        </div>
+                        <div class="zone-details">
+                            <div class="zone-stat">
+                                <span class="stat-label">Radius:</span>
+                                <span class="stat-value" id="crater-casualty-radius">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Population:</span>
+                                <span class="stat-value" id="crater-population">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Casualties:</span>
+                                <span class="stat-value casualty-count" id="crater-casualties">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="casualty-zone fireball-casualties">
+                        <div class="zone-header">
+                            <span class="zone-indicator fireball-zone"></span>
+                            <h4>Thermal Zone (85% mortality)</h4>
+                        </div>
+                        <div class="zone-details">
+                            <div class="zone-stat">
+                                <span class="stat-label">Radius:</span>
+                                <span class="stat-value" id="thermal-casualty-radius">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Population:</span>
+                                <span class="stat-value" id="thermal-population">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Casualties:</span>
+                                <span class="stat-value casualty-count" id="thermal-casualties">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="casualty-zone airblast-casualties">
+                        <div class="zone-header">
+                            <span class="zone-indicator airblast-zone"></span>
+                            <h4>Air Blast Zone (35% mortality)</h4>
+                        </div>
+                        <div class="zone-details">
+                            <div class="zone-stat">
+                                <span class="stat-label">Radius:</span>
+                                <span class="stat-value" id="airblast-casualty-radius">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Population:</span>
+                                <span class="stat-value" id="airblast-population">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Casualties:</span>
+                                <span class="stat-value casualty-count" id="airblast-casualties">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="casualty-zone seismic-casualties">
+                        <div class="zone-header">
+                            <span class="zone-indicator seismic-zone"></span>
+                            <h4>Seismic Zone (2% mortality)</h4>
+                        </div>
+                        <div class="zone-details">
+                            <div class="zone-stat">
+                                <span class="stat-label">Radius:</span>
+                                <span class="stat-value" id="seismic-casualty-radius">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Population:</span>
+                                <span class="stat-value" id="seismic-population">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Casualties:</span>
+                                <span class="stat-value casualty-count" id="seismic-casualties">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tsunami casualties (shown only for ocean impacts) -->
+                    <div class="casualty-zone tsunami-casualties" id="tsunami-casualty-zone" style="display: none;">
+                        <div class="zone-header">
+                            <span class="zone-indicator tsunami-zone"></span>
+                            <h4>Tsunami Zone (45% average mortality)</h4>
+                        </div>
+                        <div class="zone-details">
+                            <div class="zone-stat">
+                                <span class="stat-label">Max Radius:</span>
+                                <span class="stat-value" id="tsunami-casualty-radius">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Coastal Population:</span>
+                                <span class="stat-value" id="tsunami-population">-</span>
+                            </div>
+                            <div class="zone-stat">
+                                <span class="stat-label">Casualties:</span>
+                                <span class="stat-value casualty-count" id="tsunami-casualties">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comparison-context">
+                    <h3><i class="fas fa-balance-scale"></i> Historical Context</h3>
+                    <div class="context-item" id="disaster-comparison">
+                        <p>Loading historical comparison...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin=""></script>
+    
+    <script src="app.js"></script>
+</body>
+</html>
