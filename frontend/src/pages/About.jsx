@@ -63,10 +63,7 @@ const About = () => {
             About Meteor Madness
           </h1>
           <p className="text-xl text-gray-300 max-w-4xl mx-auto">
-            An interactive asteroid impact simulation and planetary defense analysis platform 
-            built for NASA Space Apps Challenge 2024. Explore the science of protecting Earth 
-            from asteroid impacts through immersive visualization and real-time calculations.
-          </p>
+         An interactive and user-friendly visualization and simulation tool that uses real data to help scientists, policymakers, and the public model asteroid impact scenarios, predict consequences, and evaluate potential mitigation strategies.          </p>
         </div>
 
         {/* Mission Statement */}
@@ -75,10 +72,7 @@ const About = () => {
             <div className="text-center">
               <h2 className="text-3xl font-nasa font-bold text-white mb-6">Our Mission</h2>
               <p className="text-lg text-gray-300 max-w-4xl mx-auto">
-                To make planetary defense accessible and understandable through interactive simulations, 
-                real-time calculations, and immersive visualizations. We believe that understanding 
-                the threat of asteroid impacts is the first step in developing effective defense strategies.
-              </p>
+                A tool that combines accurate data integration, realistic physics-based simulations, and intuitive visualizations to bridge the gap between complex science and actionable insights. </p>
             </div>
           </div>
         </section>
@@ -109,7 +103,7 @@ const About = () => {
         </section>
 
         {/* Technology Stack */}
-        <section className="mb-16">
+        {/* <section className="mb-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-nasa font-bold text-white mb-4">Technology Stack</h2>
             <p className="text-xl text-gray-300">
@@ -129,10 +123,10 @@ const About = () => {
               ))}
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Team */}
-        <section className="mb-16">
+        {/* <section className="mb-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-nasa font-bold text-white mb-4">Our Team</h2>
             <p className="text-xl text-gray-300">
@@ -152,7 +146,7 @@ const About = () => {
               </div>
             ))}
           </div>
-        </section>
+        </section> */}
 
         {/* NASA Space Apps Challenge */}
         <section className="mb-16">
@@ -162,7 +156,7 @@ const About = () => {
                 <Award className="w-10 h-10 text-white" />
               </div>
               <h2 className="text-3xl font-nasa font-bold text-white mb-4">
-                NASA Space Apps Challenge 2024
+                NASA Space Apps Challenge 2025
               </h2>
               <p className="text-lg text-gray-300 max-w-3xl mx-auto mb-6">
                 This project was developed for the NASA Space Apps Challenge, an international 
@@ -180,7 +174,7 @@ const About = () => {
                   Space Apps Challenge
                 </a>
                 <a
-                  href="https://github.com/your-username/meteor-madness"
+                  href="https://github.com/SohamDeep2026/NASA-SpaceApps---Meteor-Madness---Pagal-Ulkapind"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors duration-200"
@@ -240,7 +234,7 @@ const About = () => {
         </section>
 
         {/* Disclaimer */}
-        <section className="mb-16">
+        {/* <section className="mb-16">
           <div className="card bg-yellow-900/20 border border-yellow-500/30">
             <div className="text-center">
               <h2 className="text-2xl font-semibold text-yellow-400 mb-4">Important Disclaimer</h2>
@@ -252,10 +246,10 @@ const About = () => {
               </p>
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Contact */}
-        <section>
+        {/* <section>
           <div className="text-center">
             <h2 className="text-3xl font-nasa font-bold text-white mb-4">Get Involved</h2>
             <p className="text-xl text-gray-300 mb-8">
@@ -282,7 +276,7 @@ const About = () => {
               </a>
             </div>
           </div>
-        </section>
+        </section> */}
       </div>
     </div>
   )

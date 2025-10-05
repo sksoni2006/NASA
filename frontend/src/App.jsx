@@ -35,7 +35,7 @@ function App() {
           </Routes>
         </main>
         
-        <Footer />
+        {/* <Footer /> */}
         
         {/* Toast notifications */}
         <Toaster

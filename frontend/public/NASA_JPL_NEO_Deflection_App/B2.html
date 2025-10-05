@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Impactor Simulation</title>
+    <link rel="stylesheet" href="styleB2.css">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Kinetic Impactor Simulation ☄️</h1>
+            <p>Visualize the deflection of a Near-Earth Object's orbit after a kinetic impact.</p>
+        </header>
+
+        <div class="main-content">
+            <div class="form-container">
+                <h2>Simulation Parameters</h2>
+                <form id="simulation-form">
+                    <div class="input-group">
+                        <label for="spk-id">Asteroid SPK-ID</label>
+                        <input type="text" id="spk-id" value="2002361" required>
+                        <small>Example: 2002361 (Didymos), 2004181 (Bennu)</small>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="api-key">NASA API Key</label>
+                        <input type="text" id="api-key" value="DEMO_KEY" required>
+                        <small>Use "DEMO_KEY" or your own key from <a href="https://api.nasa.gov/" target="_blank" rel="noopener noreferrer">api.nasa.gov</a>.</small>
+                    </div>
+                    
+                    <h3>Impactor Details</h3>
+                    <div class="input-group">
+                        <label for="craft-mass">Impactor Mass (kg)</label>
+                        <input type="number" id="craft-mass" value="500" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="craft-vel">Impactor Velocity (m/s)</label>
+                        <input type="number" id="craft-vel" value="6000" required>
+                    </div>
+                     
+                    <h3>Target Asteroid Details</h3>
+                    <div class="input-group">
+                        <label for="ast-density">Asteroid Density (kg/m³)</label>
+                        <input type="number" id="ast-density" value="2170" required>
+                        <small>Typical for rubble-pile asteroids.</small>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="beta">Momentum Enhancement Factor (β)</label>
+                        <input type="number" id="beta" value="2.5" step="0.1" required>
+                        <small>Represents ejecta contribution. β > 1.</small>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="direction-mode">Impact Direction</label>
+                        <select id="direction-mode">
+                            <option value="1" selected>Along Velocity (Prograde)</option>
+                            <option value="2">Against Velocity (Retrograde)</option>
+                            <option value="3">Along Radial Vector (Outward)</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" id="calculate-btn">Calculate & Plot Orbit</button>
+                </form>
+            </div>
+
+            <div class="plot-container">
+                <div id="plot-loader" class="loader" style="display: none;"></div>
+                <div id="plot-output"></div>
+                <div id="plot-info" class="plot-info">Enter parameters and click "Calculate" to see the visualization.</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="mainB2.js"></script>
+</body>
+</html>
