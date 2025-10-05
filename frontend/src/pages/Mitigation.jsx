@@ -8,11 +8,9 @@ const Mitigation = () => {
         window.open('/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
         break;
       case 'gravity_tractor':
-        window.open('/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
+        window.open('/NASA_JPL_NEO_Deflection_App/gravity tractor3.html', '_blank')
         break;
-      case 'nuclear':
-        window.open('/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
-        break;
+
       default:
         console.error('Unknown deflection method:', method)
     }
@@ -32,14 +30,8 @@ const Mitigation = () => {
       description: 'Spacecraft hovers near asteroid using gravitational attraction',
       icon: Shield,
       color: 'from-green-500 to-green-600'
-    },
-    {
-      id: 'nuclear',
-      name: 'Nuclear Deflection',
-      description: 'Nuclear explosion near asteroid to alter its course',
-      icon: Zap,
-      color: 'from-red-500 to-red-600'
     }
+    
   ]
 
   return (

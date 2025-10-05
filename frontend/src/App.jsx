@@ -13,6 +13,7 @@ import Visualization3D from './pages/Visualization3D'
 import ImpactMap from './pages/ImpactMap'
 import Mitigation from './pages/Mitigation'
 import About from './pages/About'
+import KineticImpactor from './components/KineticImpactor';
 
 // Context
 import { SimulationProvider } from './context/SimulationContext'

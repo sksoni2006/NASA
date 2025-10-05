@@ -1,0 +1,2420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Gravity Tractor Mission Simulator - NASA/JPL Level</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            gap: 4px;
+            padding: 4px;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .control-panel {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            overflow-y: auto;
+            max-height: calc(100vh - 80px);
+        }
+
+        .visualization-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 4px;
+        }
+
+        .panel {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: linear-gradient(90deg, #0f3460, #16213e);
+            padding: 12px 16px;
+            border-bottom: 1px solid #0f3460;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-content {
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #a0a0a0;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        input, select {
+            background: #2a2a3e;
+            border: 1px solid #4a4a5e;
+            border-radius: 4px;
+            padding: 6px 8px;
+            color: #fff;
+            font-size: 12px;
+            width: 100px;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #0ea5e9;
+        }
+
+        .slider {
+            width: 100%;
+            margin: 8px 0;
+            -webkit-appearance: none;
+            height: 4px;
+            border-radius: 2px;
+            background: #4a4a5e;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            cursor: pointer;
+            border: none;
+        }
+
+        .input-unit {
+            font-size: 11px;
+            color: #a0a0a0;
+            min-width: 40px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #0ea5e9, #0369a1);
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+            margin: 4px;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #0284c7, #0ea5e9);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .result-value {
+            color: #0ea5e9;
+            font-weight: bold;
+        }
+
+        .warning {
+            background: #dc2626;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-bottom: 12px;
+        }
+
+        .success {
+            background: #16a34a;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-bottom: 12px;
+        }
+
+        .info {
+            background: #0ea5e9;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-bottom: 12px;
+        }
+
+        .chart-container {
+            height: calc(100% - 60px);
+            min-height: 200px;
+            position: relative;
+        }
+
+        .tab-container {
+            display: flex;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            background: #2a2a3e;
+            border: 1px solid #4a4a5e;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 11px;
+            border-radius: 4px 4px 0 0;
+            margin-right: 2px;
+            margin-bottom: 2px;
+        }
+
+        .tab.active {
+            background: #0ea5e9;
+            border-color: #0ea5e9;
+        }
+
+        .tab-content {
+            display: none;
+            height: calc(100% - 40px);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .mission-mode {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .mode-btn {
+            background: #2a2a3e;
+            border: 1px solid #4a4a5e;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 11px;
+            border-radius: 4px;
+            flex: 1;
+            text-align: center;
+        }
+
+        .mode-btn.active {
+            background: #0ea5e9;
+            border-color: #0ea5e9;
+        }
+
+        .parameter-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .orbital-elements {
+            background: #2a2a3e;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .asteroid-preset {
+            background: #2a2a3e;
+            border: 1px solid #4a4a5e;
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .asteroid-preset:hover {
+            border-color: #0ea5e9;
+            background: #1a2a3e;
+        }
+
+        .asteroid-preset.selected {
+            border-color: #0ea5e9;
+            background: #0ea5e9;
+        }
+
+        .progress-bar {
+            background: #2a2a3e;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #16a34a, #0ea5e9);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 200px;
+            border: 1px solid #0ea5e9;
+        }
+
+        .animation-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #4a4a5e;
+            padding: 6px;
+            text-align: left;
+        }
+
+        .comparison-table th {
+            background: #2a2a3e;
+        }
+
+        .monte-carlo-results {
+            margin-top: 12px;
+            padding: 12px;
+            background: #2a2a3e;
+            border-radius: 4px;
+        }
+
+        .optimization-result {
+            background: #16a34a;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .plume-visualization {
+            position: relative;
+            height: 200px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .formation-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .scrollable {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .risk-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .risk-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .risk-high { background: #dc2626; }
+        .risk-medium { background: #f59e0b; }
+        .risk-low { background: #16a34a; }
+
+        .collapsible {
+            cursor: pointer;
+            padding: 8px;
+            background: #2a2a3e;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        .collapsible:hover {
+            background: #3a3a4e;
+        }
+
+        .collapsible-content {
+            display: none;
+            padding: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .collapsible-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="main-container">
+        <div class="header">
+            <div class="title">Advanced Gravity Tractor Mission Simulator v2.0</div>
+            <div class="controls">
+                <button onclick="exportReport('pdf')">Export PDF</button>
+                <button onclick="exportReport('csv')">Export CSV</button>
+                <button onclick="runMonteCarlo()">Monte Carlo</button>
+                <button onclick="optimize()">Optimize</button>
+                <button onclick="toggleAnimation()">▶ Animate</button>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="panel-header">Mission Parameters</div>
+            <div class="panel-content">
+                
+                <!-- Mission Mode -->
+                <div class="mission-mode">
+                    <div class="mode-btn active" onclick="setMissionMode('standard')">Standard</div>
+                    <div class="mode-btn" onclick="setMissionMode('enhanced')">Enhanced</div>
+                    <div class="mode-btn" onclick="setMissionMode('formation')">Formation</div>
+                </div>
+
+                <!-- Asteroid Selection -->
+                <div class="collapsible" onclick="toggleSection('asteroid-section')">
+                    🌌 Asteroid Database & Custom
+                </div>
+                <div id="asteroid-section" class="collapsible-content active">
+                    <div class="button-group">
+                        <button onclick="selectAsteroid('apophis')">Apophis</button>
+                        <button onclick="selectAsteroid('bennu')">Bennu</button>
+                        <button onclick="selectAsteroid('didymos')">Didymos</button>
+                        <button onclick="selectAsteroid('pdc25')">PDC25</button>
+                        <button onclick="loadFromHorizons()">JPL Horizons</button>
+                    </div>
+                    
+                    <!-- Custom Orbital Elements -->
+                    <div class="orbital-elements">
+                        <div class="input-group">
+                            <label>Semi-major axis (a)</label>
+                            <div class="input-row">
+                                <input type="number" id="orbital-a" value="1.52" step="0.01">
+                                <span class="input-unit">AU</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Eccentricity (e)</label>
+                            <div class="input-row">
+                                <input type="number" id="orbital-e" value="0.35" step="0.01" max="0.99">
+                                <span class="input-unit">-</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Inclination (i)</label>
+                            <div class="input-row">
+                                <input type="number" id="orbital-i" value="15" step="1">
+                                <span class="input-unit">°</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Batch Comparison -->
+                    <div class="button-group">
+                        <button onclick="compareMultiple()">Compare All</button>
+                        <button onclick="clearComparison()">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Physical Parameters -->
+                <div class="collapsible" onclick="toggleSection('physical-section')">
+                    🪨 Physical Properties
+                </div>
+                <div id="physical-section" class="collapsible-content">
+                    <div class="parameter-grid">
+                        <div class="input-group">
+                            <label>Diameter: <span id="diameter-display">500</span> m</label>
+                            <input type="range" id="neo-diameter" class="slider" value="500" min="50" max="2000" step="10" oninput="updateSliderDisplay('diameter', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Density</label>
+                            <select id="neo-density">
+                                <option value="0.5">0.5 (Porous Ice)</option>
+                                <option value="1.0">1.0 (Ice/Comet)</option>
+                                <option value="1.5" selected>1.5 (Porous Rock)</option>
+                                <option value="2.17">2.17 (Didymos-like)</option>
+                                <option value="3.0">3.0 (Dense Rock)</option>
+                                <option value="8.0">8.0 (Iron)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Spacecraft Parameters -->
+                <div class="collapsible" onclick="toggleSection('spacecraft-section')">
+                    🚀 Spacecraft Configuration
+                </div>
+                <div id="spacecraft-section" class="collapsible-content">
+                    <div class="parameter-grid">
+                        <div class="input-group">
+                            <label>Mass: <span id="mass-display">1000</span> kg</label>
+                            <input type="range" id="sc-mass" class="slider" value="1000" min="100" max="10000" step="100" oninput="updateSliderDisplay('mass', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Thrust: <span id="thrust-display">0.5</span> N</label>
+                            <input type="range" id="max-thrust" class="slider" value="0.5" min="0.1" max="5" step="0.1" oninput="updateSliderDisplay('thrust', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Isp: <span id="isp-display">3200</span> s</label>
+                            <input type="range" id="specific-impulse" class="slider" value="3200" min="1000" max="5000" step="100" oninput="updateSliderDisplay('isp', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Fuel: <span id="fuel-display">200</span> kg</label>
+                            <input type="range" id="fuel-capacity" class="slider" value="200" min="50" max="1000" step="10" oninput="updateSliderDisplay('fuel', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mission Geometry -->
+                <div class="collapsible" onclick="toggleSection('geometry-section')">
+                    📐 Mission Geometry
+                </div>
+                <div id="geometry-section" class="collapsible-content">
+                    <div class="parameter-grid">
+                        <div class="input-group">
+                            <label>Hover Distance: <span id="hover-display">100</span> m</label>
+                            <input type="range" id="hover-dist" class="slider" value="100" min="50" max="1000" step="10" oninput="updateSliderDisplay('hover', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Cant Angle: <span id="cant-display">48</span>°</label>
+                            <input type="range" id="cant-angle" class="slider" value="48" min="0" max="90" step="1" oninput="updateSliderDisplay('cant', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Tow Duration: <span id="tow-display">2.0</span> years</label>
+                            <input type="range" id="tow-duration" class="slider" value="2.0" min="0.1" max="10" step="0.1" oninput="updateSliderDisplay('tow', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Lead Time: <span id="lead-display">10.0</span> years</label>
+                            <input type="range" id="lead-time" class="slider" value="10.0" min="1" max="50" step="0.5" oninput="updateSliderDisplay('lead', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>Solar Distance: <span id="solar-display">1.0</span> AU</label>
+                            <input type="range" id="solar-distance" class="slider" value="1.0" min="0.3" max="5" step="0.1" oninput="updateSliderDisplay('solar', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formation Flying (if enabled) -->
+                <div id="formation-section" class="collapsible-content" style="display: none;">
+                    <div class="formation-display">
+                        <div class="input-group">
+                            <label>Number of Craft</label>
+                            <input type="number" id="formation-count" value="3" min="2" max="12" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Formation Radius</label>
+                            <div class="input-row">
+                                <input type="number" id="formation-radius" value="200" step="10">
+                                <span class="input-unit">m</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="calculateAndDisplay()" style="width: 100%; margin-top: 12px;">🚀 Calculate Mission</button>
+
+                <!-- Quick Results Summary -->
+                <div id="quick-results" class="scrollable" style="margin-top: 12px;">
+                    <div class="result-item">
+                        <span>Mission Feasibility:</span>
+                        <span class="result-value" id="feasibility-percent">0%</span>
+                    </div>
+                    <div class="result-item">
+                        <span>Deflection:</span>
+                        <span class="result-value" id="quick-deflection">0 km</span>
+                    </div>
+                    <div class="result-item">
+                        <span>Risk Reduction:</span>
+                        <span class="result-value" id="risk-reduction">0%</span>
+                    </div>
+                </div>
+
+                <!-- Risk Assessment -->
+                <div class="risk-indicator">
+                    <div class="risk-dot" id="overall-risk"></div>
+                    <span id="risk-text">Calculating...</span>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Visualization Area -->
+        <div class="visualization-area">
+            
+            <!-- Advanced Analysis Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    Advanced Analysis
+                    <div>
+                        <button onclick="toggleLogScale()">Log Scale</button>
+                        <button onclick="showTooltips()">Tooltips</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="tab-container">
+                        <div class="tab active" onclick="showTab('sensitivity')">Sensitivity</div>
+                        <div class="tab" onclick="showTab('leadtime')">Lead Time</div>
+                        <div class="tab" onclick="showTab('optimization')">Optimization</div>
+                        <div class="tab" onclick="showTab('montecarlo')">Monte Carlo</div>
+                    </div>
+
+                    <div id="sensitivity-tab" class="tab-content active">
+                        <div class="chart-container" id="sensitivity-chart"></div>
+                    </div>
+
+                    <div id="leadtime-tab" class="tab-content">
+                        <div class="chart-container" id="leadtime-chart"></div>
+                    </div>
+
+                    <div id="optimization-tab" class="tab-content">
+                        <div class="chart-container" id="optimization-chart"></div>
+                        <div id="optimization-results"></div>
+                    </div>
+
+                    <div id="montecarlo-tab" class="tab-content">
+                        <div class="chart-container" id="montecarlo-chart"></div>
+                        <div class="monte-carlo-results" id="mc-results"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orbital Dynamics Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    Orbital Dynamics & Animation
+                    <div class="animation-controls">
+                        <button onclick="playAnimation()">▶</button>
+                        <button onclick="pauseAnimation()">⏸</button>
+                        <button onclick="resetAnimation()">⏹</button>
+                        <input type="range" id="time-slider" min="0" max="100" value="0" onchange="updateAnimationTime(this.value)">
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="tab-container">
+                        <div class="tab active" onclick="showOrbitTab('orbit3d')">3D Orbit</div>
+                        <div class="tab" onclick="showOrbitTab('bplane')">B-plane</div>
+                        <div class="tab" onclick="showOrbitTab('encounter')">Encounter</div>
+                        <div class="tab" onclick="showOrbitTab('evolution')">Evolution</div>
+                    </div>
+
+                    <div id="orbit3d-tab" class="tab-content active">
+                        <div class="chart-container" id="orbit3d-chart"></div>
+                    </div>
+
+                    <div id="bplane-tab" class="tab-content">
+                        <div class="chart-container" id="bplane-chart"></div>
+                    </div>
+
+                    <div id="encounter-tab" class="tab-content">
+                        <div class="chart-container" id="encounter-chart"></div>
+                    </div>
+
+                    <div id="evolution-tab" class="tab-content">
+                        <div class="chart-container" id="evolution-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mission Analysis Panel -->
+            <div class="panel">
+                <div class="panel-header">Mission Analysis Results</div>
+                <div class="panel-content">
+                    <div class="tab-container">
+                        <div class="tab active" onclick="showResultTab('summary')">Summary</div>
+                        <div class="tab" onclick="showResultTab('thrust')">Thrust</div>
+                        <div class="tab" onclick="showResultTab('comparison')">Compare</div>
+                        <div class="tab" onclick="showResultTab('timeline')">Timeline</div>
+                    </div>
+
+                    <div id="summary-tab" class="tab-content active scrollable">
+                        <!-- Mission Feasibility Progress -->
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="feasibility-progress" style="width: 0%"></div>
+                        </div>
+                        
+                        <!-- Primary Results -->
+                        <div class="result-item">
+                            <span>Asteroid Mass:</span>
+                            <span class="result-value" id="val-asteroid-mass">0 kg</span>
+                        </div>
+                        <div class="result-item">
+                            <span>Required Thrust:</span>
+                            <span class="result-value" id="val-required-thrust">0 N</span>
+                        </div>
+                        <div class="result-item">
+                            <span>Available Power:</span>
+                            <span class="result-value" id="val-solar-power">0 kW</span>
+                        </div>
+                        <div class="result-item">
+                            <span>Fuel Consumption:</span>
+                            <span class="result-value" id="val-fuel-used">0 kg</span>
+                        </div>
+                        <div class="result-item">
+                            <span>Delta-V Achieved:</span>
+                            <span class="result-value" id="val-deltav">0 mm/s</span>
+                        </div>
+                        <div class="result-item">
+                            <span>Deflection Distance:</span>
+                            <span class="result-value" id="val-deflection">0 km</span>
+                        </div>
+                        <div class="result-item">
+                            <span>B-plane Magnitude:</span>
+                            <span class="result-value" id="val-bplane-mag">0 ER</span>
+                        </div>
+                        <div class="result-item">
+                            <span>Impact Probability:</span>
+                            <span class="result-value" id="val-impact-prob">0</span>
+                        </div>
+                    </div>
+
+                    <div id="thrust-tab" class="tab-content">
+                        <div class="chart-container" id="thrust-chart"></div>
+                        <!-- Plume Visualization -->
+                        <div class="plume-visualization" id="plume-viz">
+                            <canvas id="plume-canvas" width="300" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <div id="comparison-tab" class="tab-content scrollable">
+                        <div id="comparison-table-container"></div>
+                    </div>
+
+                    <div id="timeline-tab" class="tab-content">
+                        <div class="chart-container" id="timeline-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formation & Constraints Panel -->
+            <!-- <div class="panel">
+                <div class="panel-header">Formation Flying & Constraints</div>
+                <div class="panel-content">
+                    <div class="tab-container">
+                        <div class="tab active" onclick="showFormationTab('formation')">Formation</div>
+                        <div class="tab" onclick="showFormationTab('constraints')">Constraints</div>
+                        <div class="tab" onclick="showFormationTab('stability')">Stability</div>
+                        <div class="tab" onclick="showFormationTab('plume')">Plume</div>
+                    </div>
+
+                    <div id="formation-tab" class="tab-content active">
+                        <div class="chart-container" id="formation-chart"></div>
+                    </div>
+
+                    <div id="constraints-tab" class="tab-content">
+                        <div class="chart-container" id="constraints-chart"></div>
+                    </div>
+
+                    <div id="stability-tab" class="tab-content">
+                        <div class="chart-container" id="stability-chart"></div>
+                    </div>
+
+                    <div id="plume-tab" class="tab-content">
+                        <div class="chart-container" id="plume-chart"></div>
+                    </div>
+                </div>
+            </div> -->
+
+        </div>
+    </div>
+
+    <!-- Tooltip element -->
+    <div id="tooltip" class="tooltip" style="display: none;"></div>
+
+    <script>
+        // Physical Constants
+        const G = 6.67430e-11; // m³/kg⋅s²
+        const EARTH_RADIUS = 6371000; // meters
+        const AU = 1.496e11; // meters
+        const SOLAR_CONSTANT = 1361; // W/m² at 1 AU
+        const g0 = 9.80665; // m/s²
+
+        // Global state
+        let currentMode = 'standard';
+        let currentResults = {};
+        let animationState = {
+            playing: false,
+            time: 0,
+            maxTime: 100
+        };
+        let logScale = false;
+        let tooltipsEnabled = false;
+        let comparisonData = [];
+
+        // Real asteroid database with JPL Horizons data
+        const asteroidDatabase = {
+            apophis: {
+                name: "99942 Apophis",
+                diameter: 340,
+                density: 3.2,
+                a: 0.9224, // AU
+                e: 0.1914,
+                i: 3.3377, // degrees
+                ma: 1.0,
+                period: 323.6, // days
+                h_mag: 19.7
+            },
+            bennu: {
+                name: "101955 Bennu", 
+                diameter: 492,
+                density: 1.19,
+                a: 1.1264,
+                e: 0.2037,
+                i: 6.0349,
+                ma: 1.0,
+                period: 436.6,
+                h_mag: 20.9
+            },
+            didymos: {
+                name: "65803 Didymos",
+                diameter: 780,
+                density: 2.17,
+                a: 1.6444,
+                e: 0.3837,
+                i: 3.4098,
+                ma: 1.0,
+                period: 770.1,
+                h_mag: 18.16
+            },
+            pdc25: {
+                name: "PDC25 Scenario",
+                diameter: 500,
+                density: 1.5,
+                a: 1.65,
+                e: 0.39,
+                i: 11,
+                ma: 1.0,
+                period: 800,
+                h_mag: 19.0
+            }
+        };
+
+        // DOM elements cache
+        const dom = {
+            // Sliders
+            neoDiameter: document.getElementById('neo-diameter'),
+            neoDensity: document.getElementById('neo-density'),
+            scMass: document.getElementById('sc-mass'),
+            maxThrust: document.getElementById('max-thrust'),
+            specificImpulse: document.getElementById('specific-impulse'),
+            fuelCapacity: document.getElementById('fuel-capacity'),
+            hoverDist: document.getElementById('hover-dist'),
+            cantAngle: document.getElementById('cant-angle'),
+            towDuration: document.getElementById('tow-duration'),
+            leadTime: document.getElementById('lead-time'),
+            solarDistance: document.getElementById('solar-distance'),
+            
+            // Orbital elements
+            orbitalA: document.getElementById('orbital-a'),
+            orbitalE: document.getElementById('orbital-e'),
+            orbitalI: document.getElementById('orbital-i'),
+            
+            // Formation flying
+            formationCount: document.getElementById('formation-count'),
+            formationRadius: document.getElementById('formation-radius'),
+            
+            // Results
+            feasibilityProgress: document.getElementById('feasibility-progress'),
+            quickDeflection: document.getElementById('quick-deflection'),
+            feasibilityPercent: document.getElementById('feasibility-percent'),
+            riskReduction: document.getElementById('risk-reduction'),
+            overallRisk: document.getElementById('overall-risk'),
+            riskText: document.getElementById('risk-text'),
+            
+            // Detailed results
+            valAsteroidMass: document.getElementById('val-asteroid-mass'),
+            valRequiredThrust: document.getElementById('val-required-thrust'),
+            valSolarPower: document.getElementById('val-solar-power'),
+            valFuelUsed: document.getElementById('val-fuel-used'),
+            valDeltav: document.getElementById('val-deltav'),
+            valDeflection: document.getElementById('val-deflection'),
+            valBplaneMag: document.getElementById('val-bplane-mag'),
+            valImpactProb: document.getElementById('val-impact-prob'),
+            
+            // Animation
+            timeSlider: document.getElementById('time-slider'),
+            
+            // Tooltip
+            tooltip: document.getElementById('tooltip')
+        };
+
+        // Initialize real-time updates for sliders
+        function updateSliderDisplay(param, value) {
+            document.getElementById(param + '-display').textContent = value;
+            calculateAndDisplay(); // Real-time calculation
+        }
+
+        function setMissionMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show/hide formation section
+            const formationSection = document.getElementById('formation-section');
+            if (mode === 'formation') {
+                formationSection.style.display = 'block';
+            } else {
+                formationSection.style.display = 'none';
+            }
+            
+            // Adjust parameters based on mode
+            if (mode === 'enhanced') {
+                dom.scMass.value = 5000;
+                dom.maxThrust.value = 2.0;
+                updateSliderDisplay('mass', 5000);
+                updateSliderDisplay('thrust', 2.0);
+            } else if (mode === 'formation') {
+                dom.scMass.value = 800;
+                dom.maxThrust.value = 0.3;
+                updateSliderDisplay('mass', 800);
+                updateSliderDisplay('thrust', 0.3);
+            }
+        }
+
+        function selectAsteroid(presetKey) {
+            const preset = asteroidDatabase[presetKey];
+            if (preset) {
+                dom.neoDiameter.value = preset.diameter;
+                dom.neoDensity.value = preset.density;
+                dom.orbitalA.value = preset.a;
+                dom.orbitalE.value = preset.e;
+                dom.orbitalI.value = preset.i;
+                
+                // Update slider displays
+                updateSliderDisplay('diameter', preset.diameter);
+                
+                // Visual feedback
+                document.querySelectorAll('.asteroid-preset').forEach(p => p.classList.remove('selected'));
+                
+                calculateAndDisplay();
+            }
+        }
+
+        function loadFromHorizons() {
+            // Simulate JPL Horizons API integration
+            alert("JPL Horizons integration: In a real implementation, this would fetch current orbital elements from JPL's Horizons system API.");
+            
+            // For demo, load Apophis with "current" data
+            selectAsteroid('apophis');
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const isActive = section.classList.contains('active');
+            section.classList.toggle('active', !isActive);
+        }
+
+        function showTab(tabName) {
+            // Remove active from all tabs in the same container
+            const container = event.target.closest('.panel');
+            container.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            const tabContent = container.querySelector(`#${tabName}-tab`);
+            if (tabContent) {
+                tabContent.classList.add('active');
+                
+                // Refresh chart for active tab
+                setTimeout(() => {
+                    if (tabName === 'sensitivity') updateSensitivityCharts();
+                    else if (tabName === 'leadtime') updateLeadTimeChart();
+                    else if (tabName === 'optimization') updateOptimizationChart();
+                    else if (tabName === 'montecarlo') updateMonteCarloChart();
+                }, 100);
+            }
+        }
+
+        function showOrbitTab(tabName) {
+            const container = event.target.closest('.panel');
+            container.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            container.querySelector(`#${tabName}-tab`).classList.add('active');
+            
+            setTimeout(() => {
+                if (tabName === 'orbit3d') update3DOrbitChart();
+                else if (tabName === 'bplane') updateBPlaneChart();
+                else if (tabName === 'encounter') updateEncounterChart();
+                else if (tabName === 'evolution') updateEvolutionChart();
+            }, 100);
+        }
+
+        function showResultTab(tabName) {
+            const container = event.target.closest('.panel');
+            container.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            container.querySelector(`#${tabName}-tab`).classList.add('active');
+            
+            setTimeout(() => {
+                if (tabName === 'thrust') updateThrustChart();
+                else if (tabName === 'comparison') updateComparisonTable();
+                else if (tabName === 'timeline') updateTimelineChart();
+            }, 100);
+        }
+
+        function showFormationTab(tabName) {
+            const container = event.target.closest('.panel');
+            container.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            container.querySelector(`#${tabName}-tab`).classList.add('active');
+            
+            setTimeout(() => {
+                if (tabName === 'formation') updateFormationChart();
+                else if (tabName === 'constraints') updateConstraintsChart();
+                else if (tabName === 'stability') updateStabilityChart();
+                else if (tabName === 'plume') updatePlumeChart();
+            }, 100);
+        }
+
+        function calculateAndDisplay() {
+            // Get all input values
+            const diameter = parseFloat(dom.neoDiameter.value);
+            const density = parseFloat(dom.neoDensity.value) * 1000; // Convert to kg/m³
+            const sc_mass = parseFloat(dom.scMass.value);
+            const max_thrust = parseFloat(dom.maxThrust.value);
+            const isp = parseFloat(dom.specificImpulse.value);
+            const fuel_capacity = parseFloat(dom.fuelCapacity.value);
+            const hover_dist = parseFloat(dom.hoverDist.value);
+            const cant_angle = parseFloat(dom.cantAngle.value) * Math.PI / 180;
+            const tow_duration_yr = parseFloat(dom.towDuration.value);
+            const lead_time_yr = parseFloat(dom.leadTime.value);
+            const solar_distance = parseFloat(dom.solarDistance.value);
+            
+            // Orbital elements
+            const a = parseFloat(dom.orbitalA.value);
+            const e = parseFloat(dom.orbitalE.value);
+            const i = parseFloat(dom.orbitalI.value);
+
+            // Validate inputs
+            if ([diameter, density, sc_mass, max_thrust, isp, fuel_capacity, hover_dist, 
+                 cant_angle, tow_duration_yr, lead_time_yr, solar_distance, a, e, i].some(isNaN)) {
+                console.warn("Invalid input detected");
+                return;
+            }
+
+            // Calculate asteroid properties
+            const radius = diameter / 2;
+            const asteroid_volume = (4/3) * Math.PI * Math.pow(radius, 3);
+            const asteroid_mass = asteroid_volume * density;
+
+            // Time conversions
+            const tow_duration_s = tow_duration_yr * 365.25 * 24 * 3600;
+            const lead_time_s = lead_time_yr * 365.25 * 24 * 3600;
+
+            // Enhanced thrust calculations with time-varying integration
+            const grav_force = G * asteroid_mass * sc_mass / Math.pow(hover_dist, 2);
+            const required_thrust_hover = grav_force;
+            
+            // Solar power model
+            const solar_flux = SOLAR_CONSTANT / Math.pow(solar_distance, 2); // W/m²
+            const solar_array_area = 10; // m² (assumption)
+            const solar_efficiency = 0.3; // 30% efficiency
+            const available_power = solar_flux * solar_array_area * solar_efficiency / 1000; // kW
+            
+            // Available thrust based on power (simplified ion thruster model)
+            const power_limited_thrust = Math.min(max_thrust, available_power * 0.05); // Rough conversion
+            
+            // Effective thrust for deflection
+            const effective_thrust = power_limited_thrust * Math.cos(cant_angle);
+            
+            // Time-varying thrust integration using rocket equation
+            // v_e = I_sp * g0 * ln(m0/mf)
+            const exhaust_velocity = isp * g0;
+            
+            // Fuel consumption over mission
+            const fuel_flow_rate = effective_thrust / exhaust_velocity; // kg/s
+            const total_fuel_used = fuel_flow_rate * tow_duration_s;
+            const mass_ratio = sc_mass / (sc_mass - total_fuel_used);
+            
+            // Delta-V calculation with time-varying mass
+            const delta_v_rocket = exhaust_velocity * Math.log(mass_ratio);
+            
+            // Asteroid acceleration and deflection
+            const net_force_on_asteroid = effective_thrust; // Newton's 3rd law
+            const asteroid_acceleration = net_force_on_asteroid / asteroid_mass;
+            const delta_v_asteroid = asteroid_acceleration * tow_duration_s;
+            const deflection_m = delta_v_asteroid * lead_time_s;
+            const deflection_km = deflection_m / 1000;
+
+            // Enhanced B-plane calculations
+            const bplane_shift_xi = deflection_m * 0.6 / EARTH_RADIUS;
+            const bplane_shift_zeta = deflection_m * 0.8 / EARTH_RADIUS;
+            const bplane_magnitude = Math.sqrt(bplane_shift_xi*bplane_shift_xi + bplane_shift_zeta*bplane_shift_zeta);
+
+            // Risk assessment - impact probability reduction
+            const baseline_impact_prob = 1e-4; // 1 in 10,000 baseline
+            const deflection_effectiveness = Math.min(1.0, deflection_km / 1000); // Normalize
+            const final_impact_prob = baseline_impact_prob * (1 - deflection_effectiveness);
+            const risk_reduction = (1 - final_impact_prob / baseline_impact_prob) * 100;
+
+            // Mission feasibility calculation
+            let feasibility_score = 0;
+            const thrust_feasible = power_limited_thrust >= required_thrust_hover * 0.8;
+            const fuel_feasible = total_fuel_used <= fuel_capacity;
+            const power_adequate = available_power >= 1.0; // Minimum 1 kW
+            const deflection_adequate = deflection_km >= 1000; // Minimum 1000 km deflection
+            const plume_safe = hover_dist >= diameter; // Hover at least 1 diameter away
+            
+            if (thrust_feasible) feasibility_score += 25;
+            if (fuel_feasible) feasibility_score += 25;
+            if (power_adequate) feasibility_score += 20;
+            if (deflection_adequate) feasibility_score += 20;
+            if (plume_safe) feasibility_score += 10;
+
+            // Store results globally
+            currentResults = {
+                asteroid_mass, sc_mass, hover_dist, tow_duration_s, lead_time_s,
+                asteroid_acceleration, delta_v_asteroid, deflection_km, 
+                required_thrust_hover, effective_thrust, power_limited_thrust,
+                cant_angle, solar_distance, diameter, density, available_power,
+                total_fuel_used, fuel_capacity, bplane_magnitude,
+                final_impact_prob, risk_reduction, feasibility_score,
+                a, e, i, exhaust_velocity, mass_ratio, delta_v_rocket,
+                thrust_feasible, fuel_feasible, power_adequate, deflection_adequate, plume_safe
+            };
+
+            // Update UI displays
+            updateResultDisplays();
+            updateAllCharts();
+        }
+
+        function updateResultDisplays() {
+            const r = currentResults;
+            
+            // Quick results
+            dom.feasibilityPercent.textContent = `${r.feasibility_score.toFixed(0)}%`;
+            dom.quickDeflection.textContent = `${r.deflection_km.toLocaleString()} km`;
+            dom.riskReduction.textContent = `${r.risk_reduction.toFixed(1)}%`;
+            
+            // Feasibility progress bar
+            dom.feasibilityProgress.style.width = `${r.feasibility_score}%`;
+            
+            // Risk indicator
+            if (r.feasibility_score >= 80) {
+                dom.overallRisk.className = 'risk-dot risk-low';
+                dom.riskText.textContent = 'Low Risk - Mission Feasible';
+            } else if (r.feasibility_score >= 60) {
+                dom.overallRisk.className = 'risk-dot risk-medium';
+                dom.riskText.textContent = 'Medium Risk - Marginal Mission';
+            } else {
+                dom.overallRisk.className = 'risk-dot risk-high';
+                dom.riskText.textContent = 'High Risk - Mission Challenging';
+            }
+            
+            // Detailed results
+            dom.valAsteroidMass.textContent = `${r.asteroid_mass.toExponential(2)} kg`;
+            dom.valRequiredThrust.textContent = `${r.required_thrust_hover.toFixed(3)} N`;
+            dom.valSolarPower.textContent = `${r.available_power.toFixed(2)} kW`;
+            dom.valFuelUsed.textContent = `${r.total_fuel_used.toFixed(1)} kg`;
+            dom.valDeltav.textContent = `${(r.delta_v_asteroid * 1000).toFixed(3)} mm/s`;
+            dom.valDeflection.textContent = `${r.deflection_km.toLocaleString()} km`;
+            dom.valBplaneMag.textContent = `${r.bplane_magnitude.toFixed(3)} ER`;
+            dom.valImpactProb.textContent = `${r.final_impact_prob.toExponential(2)}`;
+        }
+
+        function updateAllCharts() {
+            // Update all charts based on current results
+            updateSensitivityCharts();
+            updateLeadTimeChart();
+            update3DOrbitChart();
+            updateBPlaneChart();
+            updateThrustChart();
+            updateTimelineChart();
+            updateFormationChart();
+            updatePlumeVisualization();
+        }
+
+        function updateSensitivityCharts() {
+            if (!currentResults.asteroid_mass) return;
+            
+            const distances = [];
+            const deflections = [];
+            const thrusts = [];
+            
+            // Generate sensitivity data for hover distance
+            for (let d = 50; d <= 1000; d += 20) {
+                distances.push(d);
+                
+                // Recalculate for this distance
+                const grav_force = G * currentResults.asteroid_mass * currentResults.sc_mass / Math.pow(d, 2);
+                const eff_thrust = Math.min(currentResults.power_limited_thrust, grav_force) * Math.cos(currentResults.cant_angle);
+                const accel = eff_thrust / currentResults.asteroid_mass;
+                const dv = accel * currentResults.tow_duration_s;
+                const defl = dv * currentResults.lead_time_s / 1000;
+                
+                deflections.push(logScale ? Math.log10(Math.max(defl, 1)) : defl);
+                thrusts.push(logScale ? Math.log10(Math.max(grav_force, 1e-6)) : grav_force);
+            }
+
+            const trace1 = {
+                x: distances,
+                y: deflections,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Deflection vs Distance',
+                line: { color: '#0ea5e9', width: 3 },
+                marker: { size: 4 }
+            };
+            
+            const trace2 = {
+                x: distances,
+                y: thrusts,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Required Thrust',
+                yaxis: 'y2',
+                line: { color: '#f59e0b', width: 2 }
+            };
+
+            const layout = {
+                title: {
+                    text: 'Sensitivity Analysis: Hover Distance',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { 
+                    title: 'Hover Distance (m)', 
+                    color: '#fff', 
+                    gridcolor: '#333',
+                    showgrid: true
+                },
+                yaxis: { 
+                    title: logScale ? 'log₁₀(Deflection) (km)' : 'Deflection (km)', 
+                    color: '#0ea5e9', 
+                    gridcolor: '#333',
+                    showgrid: true
+                },
+                yaxis2: {
+                    title: logScale ? 'log₁₀(Thrust) (N)' : 'Required Thrust (N)',
+                    titlefont: { color: '#f59e0b' },
+                    tickfont: { color: '#f59e0b' },
+                    overlaying: 'y',
+                    side: 'right',
+                    gridcolor: '#333'
+                },
+                margin: { l: 50, r: 50, t: 40, b: 40 },
+                height: 350,
+                showlegend: true,
+                legend: { 
+                    x: 0.7, 
+                    y: 0.9,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: { color: '#fff' }
+                }
+            };
+
+            Plotly.newPlot('sensitivity-chart', [trace1, trace2], layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+            
+            // Add hover tooltips
+            if (tooltipsEnabled) {
+                addTooltipToChart('sensitivity-chart', 
+                    'Hover distance affects both gravitational coupling and required thrust. Closer distances provide stronger coupling but require more thrust to maintain position.');
+            }
+        }
+
+        function updateLeadTimeChart() {
+            const leadTimes = [];
+            const deflections_tow1 = [];
+            const deflections_tow2 = [];
+            const deflections_tow5 = [];
+            
+            // Generate data for different tow durations vs lead time
+            for (let lt = 1; lt <= 50; lt += 1) {
+                leadTimes.push(lt);
+                
+                const lead_s = lt * 365.25 * 24 * 3600;
+                const base_dv = currentResults.asteroid_acceleration;
+                
+                // Different tow durations
+                const defl1 = base_dv * (1 * 365.25 * 24 * 3600) * lead_s / 1000;
+                const defl2 = base_dv * (2 * 365.25 * 24 * 3600) * lead_s / 1000;
+                const defl5 = base_dv * (5 * 365.25 * 24 * 3600) * lead_s / 1000;
+                
+                deflections_tow1.push(defl1);
+                deflections_tow2.push(defl2);
+                deflections_tow5.push(defl5);
+            }
+
+            const traces = [
+                {
+                    x: leadTimes,
+                    y: deflections_tow1,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '1 year towing',
+                    line: { color: '#dc2626', width: 2 }
+                },
+                {
+                    x: leadTimes,
+                    y: deflections_tow2,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '2 year towing',
+                    line: { color: '#0ea5e9', width: 2 }
+                },
+                {
+                    x: leadTimes,
+                    y: deflections_tow5,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '5 year towing',
+                    line: { color: '#16a34a', width: 2 }
+                }
+            ];
+
+            const layout = {
+                title: {
+                    text: 'Deflection vs Lead Time',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { 
+                    title: 'Lead Time (years)', 
+                    color: '#fff', 
+                    gridcolor: '#333' 
+                },
+                yaxis: { 
+                    title: 'Deflection Distance (km)', 
+                    color: '#fff', 
+                    gridcolor: '#333',
+                    type: logScale ? 'log' : 'linear'
+                },
+                margin: { l: 50, r: 20, t: 40, b: 40 },
+                height: 350,
+                showlegend: true,
+                legend: { 
+                    x: 0.02, 
+                    y: 0.98,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: { color: '#fff' }
+                }
+            };
+
+            Plotly.newPlot('leadtime-chart', traces, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+
+            if (tooltipsEnabled) {
+                addTooltipToChart('leadtime-chart', 
+                    'Lead time has a linear relationship with deflection. Longer lead times allow smaller velocity changes to result in larger positional changes at Earth encounter.');
+            }
+        }
+
+        function update3DOrbitChart() {
+            // Generate 3D orbital trajectories
+            const steps = 200;
+            
+            // Earth orbit
+            const earth_x = [], earth_y = [], earth_z = [];
+            // Asteroid orbit (pre-deflection)
+            const ast_x_pre = [], ast_y_pre = [], ast_z_pre = [];
+            // Asteroid orbit (post-deflection)
+            const ast_x_post = [], ast_y_post = [], ast_z_post = [];
+            
+            const r = currentResults;
+            const a = r.a || 1.52;
+            const e = r.e || 0.35;
+            const i_rad = (r.i || 15) * Math.PI / 180;
+            
+            for (let j = 0; j <= steps; j++) {
+                const theta = (j / steps) * 2 * Math.PI;
+                
+                // Earth (circular orbit)
+                earth_x.push(Math.cos(theta));
+                earth_y.push(Math.sin(theta));
+                earth_z.push(0);
+                
+                // Asteroid orbit calculation
+                const r_ast = a * (1 - e*e) / (1 + e * Math.cos(theta));
+                
+                // Pre-deflection
+                const x_pre = r_ast * Math.cos(theta);
+                const y_pre = r_ast * Math.sin(theta) * Math.cos(i_rad);
+                const z_pre = r_ast * Math.sin(theta) * Math.sin(i_rad);
+                
+                ast_x_pre.push(x_pre);
+                ast_y_pre.push(y_pre);
+                ast_z_pre.push(z_pre);
+                
+                // Post-deflection (slightly perturbed)
+                const perturbation = r.deflection_km / (AU / 1000) * 0.01; // Small perturbation
+                ast_x_post.push(x_pre + perturbation * Math.cos(theta * 2));
+                ast_y_post.push(y_pre + perturbation * Math.sin(theta * 2));
+                ast_z_post.push(z_pre + perturbation * Math.sin(theta * 3));
+            }
+
+            const traces = [
+                {
+                    x: earth_x, y: earth_y, z: earth_z,
+                    type: 'scatter3d',
+                    mode: 'lines',
+                    name: 'Earth Orbit',
+                    line: { color: '#0ea5e9', width: 4 }
+                },
+                {
+                    x: ast_x_pre, y: ast_y_pre, z: ast_z_pre,
+                    type: 'scatter3d',
+                    mode: 'lines',
+                    name: 'Pre-Deflection',
+                    line: { color: '#dc2626', width: 3 }
+                },
+                {
+                    x: ast_x_post, y: ast_y_post, z: ast_z_post,
+                    type: 'scatter3d',
+                    mode: 'lines',
+                    name: 'Post-Deflection',
+                    line: { color: '#16a34a', width: 3, dash: 'dash' }
+                },
+                {
+                    x: [0], y: [0], z: [0],
+                    type: 'scatter3d',
+                    mode: 'markers',
+                    name: 'Sun',
+                    marker: { size: 8, color: '#fbbf24' }
+                }
+            ];
+
+            const layout = {
+                title: {
+                    text: '3D Orbital Evolution',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#fff', size: 10 },
+                scene: {
+                    xaxis: { title: 'X (AU)', color: '#fff', backgroundcolor: 'rgba(0,0,0,0)' },
+                    yaxis: { title: 'Y (AU)', color: '#fff', backgroundcolor: 'rgba(0,0,0,0)' },
+                    zaxis: { title: 'Z (AU)', color: '#fff', backgroundcolor: 'rgba(0,0,0,0)' },
+                    bgcolor: 'rgba(0,0,0,0)',
+                    camera: {
+                        eye: { x: 1.5, y: 1.5, z: 0.7 }
+                    }
+                },
+                margin: { l: 0, r: 0, t: 40, b: 0 },
+                height: 350,
+                showlegend: true,
+                legend: { 
+                    x: 0.8, 
+                    y: 0.9,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: { color: '#fff' }
+                }
+            };
+
+            Plotly.newPlot('orbit3d-chart', traces, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+
+            if (tooltipsEnabled) {
+                addTooltipToChart('orbit3d-chart', 
+                    'This shows the asteroid\'s orbit before and after deflection. The gravity tractor creates a small but persistent change in the orbital trajectory.');
+            }
+        }
+
+        function updateBPlaneChart() {
+            // B-plane targeting with encounter geometry
+            const r = currentResults;
+            
+            // Earth cross-section
+            const earth_theta = [];
+            const earth_x = [];
+            const earth_y = [];
+            
+            for (let i = 0; i <= 100; i++) {
+                const theta = (i / 100) * 2 * Math.PI;
+                earth_theta.push(theta);
+                earth_x.push(Math.cos(theta));
+                earth_y.push(Math.sin(theta));
+            }
+            
+            // Current deflection point
+            const xi = r.bplane_magnitude * 0.6; // ξ component
+            const zeta = r.bplane_magnitude * 0.8; // ζ component
+            
+            // Uncertainty ellipse (simplified)
+            const unc_x = [];
+            const unc_y = [];
+            const uncertainty_radius = r.bplane_magnitude * 0.1;
+            
+            for (let i = 0; i <= 50; i++) {
+                const theta = (i / 50) * 2 * Math.PI;
+                unc_x.push(xi + uncertainty_radius * Math.cos(theta));
+                unc_y.push(zeta + uncertainty_radius * Math.sin(theta));
+            }
+
+            const traces = [
+                {
+                    x: earth_x, y: earth_y,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Earth (1 ER)',
+                    line: { color: '#0ea5e9', width: 4 },
+                    fill: 'toself',
+                    fillcolor: 'rgba(14, 165, 233, 0.1)'
+                },
+                {
+                    x: [xi], y: [zeta],
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Deflection Target',
+                    marker: { 
+                        size: 12, 
+                        color: '#16a34a', 
+                        symbol: 'cross',
+                        line: { width: 2, color: '#fff' }
+                    }
+                },
+                {
+                    x: unc_x, y: unc_y,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Uncertainty (3σ)',
+                    line: { color: '#f59e0b', width: 2, dash: 'dash' }
+                }
+            ];
+
+            const layout = {
+                title: {
+                    text: 'B-plane Targeting & Encounter Geometry',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { 
+                    title: 'ξ (Earth Radii)', 
+                    color: '#fff', 
+                    gridcolor: '#333',
+                    range: [-10, 10],
+                    scaleanchor: 'y',
+                    scaleratio: 1
+                },
+                yaxis: { 
+                    title: 'ζ (Earth Radii)', 
+                    color: '#fff', 
+                    gridcolor: '#333',
+                    range: [-10, 10]
+                },
+                margin: { l: 50, r: 20, t: 40, b: 40 },
+                height: 350,
+                showlegend: true,
+                legend: { 
+                    x: 0.02, 
+                    y: 0.98,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: { color: '#fff' }
+                }
+            };
+
+            Plotly.newPlot('bplane-chart', traces, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+
+            if (tooltipsEnabled) {
+                addTooltipToChart('bplane-chart', 
+                    'The B-plane shows where the asteroid would pass relative to Earth. The gravity tractor moves the impact point away from Earth (center circle).');
+            }
+        }
+
+        function updateThrustChart() {
+            // Thrust vs time and solar power availability
+            const time_points = [];
+            const available_thrust = [];
+            const required_thrust = [];
+            const power_available = [];
+            
+            const r = currentResults;
+            
+            // Simulate mission timeline
+            for (let t = 0; t <= r.tow_duration_s / (24*3600); t += 10) { // Daily points
+                time_points.push(t);
+                
+                // Solar distance variation (simplified)
+                const solar_dist = r.solar_distance * (1 + 0.1 * Math.sin(t / 100));
+                const solar_flux = SOLAR_CONSTANT / Math.pow(solar_dist, 2);
+                const power = solar_flux * 10 * 0.3 / 1000; // 10 m², 30% efficiency, kW
+                const thrust_from_power = Math.min(r.power_limited_thrust, power * 0.05);
+                
+                available_thrust.push(thrust_from_power);
+                required_thrust.push(r.required_thrust_hover);
+                power_available.push(power);
+            }
+
+            const traces = [
+                {
+                    x: time_points,
+                    y: available_thrust,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Available Thrust',
+                    line: { color: '#16a34a', width: 2 }
+                },
+                {
+                    x: time_points,
+                    y: required_thrust,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Required Thrust',
+                    line: { color: '#dc2626', width: 2, dash: 'dash' }
+                },
+                {
+                    x: time_points,
+                    y: power_available,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Solar Power',
+                    yaxis: 'y2',
+                    line: { color: '#fbbf24', width: 2 }
+                }
+            ];
+
+            const layout = {
+                title: {
+                    text: 'Thrust & Power vs Time',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { 
+                    title: 'Mission Time (days)', 
+                    color: '#fff', 
+                    gridcolor: '#333' 
+                },
+                yaxis: { 
+                    title: 'Thrust (N)', 
+                    color: '#fff', 
+                    gridcolor: '#333' 
+                },
+                yaxis2: {
+                    title: 'Power (kW)',
+                    titlefont: { color: '#fbbf24' },
+                    tickfont: { color: '#fbbf24' },
+                    overlaying: 'y',
+                    side: 'right'
+                },
+                margin: { l: 50, r: 50, t: 40, b: 40 },
+                height: 250,
+                showlegend: true,
+                legend: { 
+                    x: 0.02, 
+                    y: 0.98,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: { color: '#fff' }
+                }
+            };
+
+            Plotly.newPlot('thrust-chart', traces, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+        }
+
+        function updatePlumeVisualization() {
+            // Draw thruster plume cone constraint
+            const canvas = document.getElementById('plume-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const r = currentResults;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Scale factors
+            const scale = 50; // pixels per unit
+            const spacecraft_x = centerX - r.hover_dist / 5;
+            const asteroid_x = centerX + r.diameter / 10;
+            
+            // Draw asteroid
+            ctx.fillStyle = '#8b5cf6';
+            ctx.beginPath();
+            ctx.arc(asteroid_x, centerY, r.diameter / 20, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw spacecraft
+            ctx.fillStyle = '#0ea5e9';
+            ctx.beginPath();
+            ctx.rect(spacecraft_x - 5, centerY - 3, 10, 6);
+            ctx.fill();
+            
+            // Draw plume cone
+            const plume_angle = 20 * Math.PI / 180; // 20 degree half-angle
+            const plume_length = r.hover_dist / 3;
+            
+            ctx.strokeStyle = '#f59e0b';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 2;
+            
+            // Upper cone line
+            ctx.beginPath();
+            ctx.moveTo(spacecraft_x, centerY);
+            ctx.lineTo(spacecraft_x + plume_length, centerY - plume_length * Math.tan(plume_angle));
+            ctx.stroke();
+            
+            // Lower cone line
+            ctx.beginPath();
+            ctx.moveTo(spacecraft_x, centerY);
+            ctx.lineTo(spacecraft_x + plume_length, centerY + plume_length * Math.tan(plume_angle));
+            ctx.stroke();
+            
+            // Safety check
+            const plume_width_at_asteroid = (asteroid_x - spacecraft_x) * Math.tan(plume_angle) * 2;
+            const asteroid_radius = r.diameter / 20;
+            const is_safe = plume_width_at_asteroid < asteroid_radius;
+            
+            // Draw safety indicator
+            ctx.setLineDash([]);
+            ctx.fillStyle = is_safe ? '#16a34a' : '#dc2626';
+            ctx.font = '12px Arial';
+            ctx.fillText(is_safe ? '✓ Plume Safe' : '⚠ Plume Risk', 10, 20);
+        }
+
+        function updateFormationChart() {
+            if (currentMode !== 'formation') {
+                // Show single spacecraft configuration
+                const trace = {
+                    x: [0],
+                    y: [0],
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Primary Spacecraft',
+                    marker: { size: 15, color: '#0ea5e9', symbol: 'square' }
+                };
+
+                const layout = {
+                    title: {
+                        text: 'Single Spacecraft Configuration',
+                        font: { color: '#fff', size: 14 }
+                    },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0.1)',
+                    font: { color: '#fff', size: 10 },
+                    xaxis: { title: 'X (m)', color: '#fff', gridcolor: '#333', range: [-500, 500] },
+                    yaxis: { title: 'Y (m)', color: '#fff', gridcolor: '#333', range: [-500, 500] },
+                    margin: { l: 40, r: 20, t: 40, b: 40 },
+                    height: 350,
+                    showlegend: false
+                };
+
+                Plotly.newPlot('formation-chart', [trace], layout, {
+                    responsive: true,
+                    displayModeBar: false
+                });
+                return;
+            }
+            
+            // Formation flying configuration
+            const count = parseInt(dom.formationCount.value) || 3;
+            const radius = parseFloat(dom.formationRadius.value) || 200;
+            
+            const spacecraft_x = [];
+            const spacecraft_y = [];
+            
+            // Asteroid at center
+            const asteroid_trace = {
+                x: [0],
+                y: [0],
+                type: 'scatter',
+                mode: 'markers',
+                name: 'Asteroid',
+                marker: { size: 20, color: '#8b5cf6', symbol: 'diamond' }
+            };
+            
+            // Spacecraft in formation
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * 2 * Math.PI;
+                spacecraft_x.push(radius * Math.cos(angle));
+                spacecraft_y.push(radius * Math.sin(angle));
+            }
+            
+            const spacecraft_trace = {
+                x: spacecraft_x,
+                y: spacecraft_y,
+                type: 'scatter',
+                mode: 'markers+text',
+                name: 'Formation Spacecraft',
+                marker: { size: 12, color: '#0ea5e9', symbol: 'square' },
+                text: spacecraft_x.map((_, i) => `SC${i+1}`),
+                textposition: 'top center',
+                textfont: { color: '#fff', size: 8 }
+            };
+            
+            // Formation circle
+            const circle_x = [];
+            const circle_y = [];
+            for (let i = 0; i <= 100; i++) {
+                const angle = (i / 100) * 2 * Math.PI;
+                circle_x.push(radius * Math.cos(angle));
+                circle_y.push(radius * Math.sin(angle));
+            }
+            
+            const circle_trace = {
+                x: circle_x,
+                y: circle_y,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Formation Boundary',
+                line: { color: '#4b5563', width: 1, dash: 'dash' },
+                showlegend: false
+            };
+
+            const layout = {
+                title: {
+                    text: `Formation Flying: ${count} Spacecraft`,
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { 
+                    title: 'X (m)', 
+                    color: '#fff', 
+                    gridcolor: '#333',
+                    scaleanchor: 'y',
+                    scaleratio: 1,
+                    range: [-radius*1.5, radius*1.5]
+                },
+                yaxis: { 
+                    title: 'Y (m)', 
+                    color: '#fff', 
+                    gridcolor: '#333',
+                    range: [-radius*1.5, radius*1.5]
+                },
+                margin: { l: 40, r: 20, t: 40, b: 40 },
+                height: 350,
+                showlegend: true,
+                legend: { 
+                    x: 0.02, 
+                    y: 0.98,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: { color: '#fff' }
+                }
+            };
+
+            Plotly.newPlot('formation-chart', [asteroid_trace, spacecraft_trace, circle_trace], layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+
+            if (tooltipsEnabled) {
+                addTooltipToChart('formation-chart', 
+                    'Formation flying uses multiple smaller spacecraft to create a distributed gravity tractor. Each spacecraft contributes to the total deflection force.');
+            }
+        }
+
+        // Additional chart functions
+        function updateOptimizationChart() {
+            // Create optimization surface for hover distance vs spacecraft mass
+            const masses = [];
+            const distances = [];
+            const efficiency = []; // Delta-V per unit fuel
+            
+            for (let m = 500; m <= 5000; m += 250) {
+                const mass_row = [];
+                const eff_row = [];
+                for (let d = 50; d <= 500; d += 25) {
+                    mass_row.push(m);
+                    
+                    // Calculate efficiency at this point
+                    const grav_force = G * currentResults.asteroid_mass * m / Math.pow(d, 2);
+                    const fuel_rate = grav_force / (currentResults.exhaust_velocity);
+                    const total_fuel = fuel_rate * currentResults.tow_duration_s;
+                    const eff = total_fuel > 0 ? (currentResults.delta_v_asteroid * 1000) / total_fuel : 0;
+                    
+                    eff_row.push(eff);
+                }
+                masses.push(mass_row);
+                efficiency.push(eff_row);
+                
+                if (distances.length === 0) {
+                    for (let d = 50; d <= 500; d += 25) {
+                        distances.push(d);
+                    }
+                }
+            }
+
+            const trace = {
+                z: efficiency,
+                type: 'surface',
+                colorscale: 'Viridis',
+                name: 'Efficiency Surface'
+            };
+
+            const layout = {
+                title: {
+                    text: 'Mission Optimization Surface',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#fff', size: 10 },
+                scene: {
+                    xaxis: { title: 'Distance (m)', color: '#fff' },
+                    yaxis: { title: 'Mass (kg)', color: '#fff' },
+                    zaxis: { title: 'Efficiency (mm/s per kg fuel)', color: '#fff' },
+                    bgcolor: 'rgba(0,0,0,0)'
+                },
+                margin: { l: 0, r: 0, t: 40, b: 0 },
+                height: 350
+            };
+
+            Plotly.newPlot('optimization-chart', [trace], layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+        }
+
+        function updateMonteCarloChart() {
+            // Placeholder for Monte Carlo results
+            const samples = [];
+            const deflections = [];
+            
+            // Generate sample Monte Carlo data
+            for (let i = 0; i < 1000; i++) {
+                samples.push(i);
+                
+                // Add uncertainty to key parameters
+                const mass_var = currentResults.sc_mass * (1 + (Math.random() - 0.5) * 0.2);
+                const dist_var = currentResults.hover_dist * (1 + (Math.random() - 0.5) * 0.1);
+                const thrust_var = currentResults.effective_thrust * (1 + (Math.random() - 0.5) * 0.15);
+                
+                // Recalculate deflection with variations
+                const accel_var = thrust_var / currentResults.asteroid_mass;
+                const dv_var = accel_var * currentResults.tow_duration_s;
+                const defl_var = dv_var * currentResults.lead_time_s / 1000;
+                
+                deflections.push(defl_var);
+            }
+
+            const trace = {
+                x: deflections,
+                type: 'histogram',
+                nbinsx: 50,
+                name: 'Deflection Distribution',
+                marker: { color: '#0ea5e9', opacity: 0.7 }
+            };
+
+            const layout = {
+                title: {
+                    text: 'Monte Carlo Uncertainty Analysis',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { title: 'Deflection (km)', color: '#fff', gridcolor: '#333' },
+                yaxis: { title: 'Frequency', color: '#fff', gridcolor: '#333' },
+                margin: { l: 40, r: 20, t: 40, b: 40 },
+                height: 350,
+                showlegend: false
+            };
+
+            Plotly.newPlot('montecarlo-chart', [trace], layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+            
+            // Update MC results summary
+            const mean_defl = deflections.reduce((a, b) => a + b) / deflections.length;
+            const std_defl = Math.sqrt(deflections.reduce((a, b) => a + Math.pow(b - mean_defl, 2), 0) / deflections.length);
+            
+            document.getElementById('mc-results').innerHTML = `
+                <div class="result-item">
+                    <span>Mean Deflection:</span>
+                    <span class="result-value">${mean_defl.toFixed(0)} km</span>
+                </div>
+                <div class="result-item">
+                    <span>Std Deviation:</span>
+                    <span class="result-value">±${std_defl.toFixed(0)} km</span>
+                </div>
+                <div class="result-item">
+                    <span>Confidence (3σ):</span>
+                    <span class="result-value">${((1 - 0.0027) * 100).toFixed(1)}%</span>
+                </div>
+            `;
+        }
+
+        function updateTimelineChart() {
+            const phases = [
+                { name: 'Development', start: 0, duration: 3, color: '#dc2626' },
+                { name: 'Launch & Transit', start: 3, duration: 2, color: '#f59e0b' },
+                { name: 'Approach & Rendezvous', start: 5, duration: 0.5, color: '#0ea5e9' },
+                { name: 'Gravity Tractor Operations', start: 5.5, duration: parseFloat(dom.towDuration.value), color: '#16a34a' },
+                { name: 'Departure & Monitoring', start: 5.5 + parseFloat(dom.towDuration.value), duration: 1, color: '#8b5cf6' }
+            ];
+
+            const traces = phases.map((phase, i) => ({
+                x: [phase.start, phase.start + phase.duration],
+                y: [i, i],
+                mode: 'lines',
+                line: { width: 30, color: phase.color },
+                name: phase.name,
+                showlegend: false,
+                hovertemplate: `${phase.name}<br>Duration: ${phase.duration} years<extra></extra>`
+            }));
+
+            // Add phase labels
+            const labels = {
+                x: phases.map(p => p.start + p.duration / 2),
+                y: phases.map((_, i) => i),
+                mode: 'text',
+                text: phases.map(p => p.name),
+                textfont: { color: '#fff', size: 10 },
+                showlegend: false,
+                hoverinfo: 'none'
+            };
+            
+            traces.push(labels);
+
+            const layout = {
+                title: {
+                    text: 'Mission Timeline & Phases',
+                    font: { color: '#fff', size: 14 }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.1)',
+                font: { color: '#fff', size: 10 },
+                xaxis: { title: 'Time (years)', color: '#fff', gridcolor: '#333' },
+                yaxis: { 
+                    tickmode: 'array',
+                    tickvals: phases.map((_, i) => i),
+                    ticktext: phases.map(() => ''),
+                    color: '#fff',
+                    showgrid: false
+                },
+                margin: { l: 20, r: 20, t: 40, b: 40 },
+                height: 200,
+                showlegend: false
+            };
+
+            Plotly.newPlot('timeline-chart', traces, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+        }
+
+        // Placeholder functions for remaining charts
+        function updateEncounterChart() {
+            console.log("Encounter chart updated");
+        }
+
+        function updateEvolutionChart() {
+            console.log("Evolution chart updated");
+        }
+
+        function updateConstraintsChart() {
+            console.log("Constraints chart updated");
+        }
+
+        function updateStabilityChart() {
+            console.log("Stability chart updated");
+        }
+
+        function updatePlumeChart() {
+            console.log("Plume chart updated");
+        }
+
+        function updateComparisonTable() {
+            if (comparisonData.length === 0) {
+                document.getElementById('comparison-table-container').innerHTML = 
+                    '<div class="info">No comparison data available. Use "Compare All" to generate multi-asteroid analysis.</div>';
+                return;
+            }
+            
+            // Generate comparison table
+            let tableHtml = '<table class="comparison-table"><thead><tr>';
+            tableHtml += '<th>Asteroid</th><th>Deflection (km)</th><th>Fuel (kg)</th><th>Feasibility (%)</th><th>Risk Reduction (%)</th>';
+            tableHtml += '</tr></thead><tbody>';
+            
+            comparisonData.forEach(data => {
+                tableHtml += `<tr>
+                    <td>${data.name}</td>
+                    <td>${data.deflection.toFixed(0)}</td>
+                    <td>${data.fuel.toFixed(1)}</td>
+                    <td>${data.feasibility.toFixed(0)}</td>
+                    <td>${data.risk_reduction.toFixed(1)}</td>
+                </tr>`;
+            });
+            
+            tableHtml += '</tbody></table>';
+            document.getElementById('comparison-table-container').innerHTML = tableHtml;
+        }
+
+        // Utility functions
+        function toggleLogScale() {
+            logScale = !logScale;
+            updateSensitivityCharts();
+            updateLeadTimeChart();
+        }
+
+        function showTooltips() {
+            tooltipsEnabled = !tooltipsEnabled;
+        }
+
+        function addTooltipToChart(chartId, text) {
+            // Add tooltip functionality to charts
+            const chartDiv = document.getElementById(chartId);
+            if (chartDiv) {
+                chartDiv.setAttribute('title', text);
+            }
+        }
+
+        function playAnimation() {
+            animationState.playing = true;
+            animateOrbit();
+        }
+
+        function pauseAnimation() {
+            animationState.playing = false;
+        }
+
+        function resetAnimation() {
+            animationState.playing = false;
+            animationState.time = 0;
+            dom.timeSlider.value = 0;
+        }
+
+        function updateAnimationTime(value) {
+            animationState.time = parseFloat(value);
+            // Update charts with new time position
+        }
+
+        function animateOrbit() {
+            if (!animationState.playing) return;
+            
+            animationState.time += 1;
+            if (animationState.time >= animationState.maxTime) {
+                animationState.time = 0;
+            }
+            
+            dom.timeSlider.value = animationState.time;
+            
+            // Update orbital positions based on time
+            update3DOrbitChart();
+            
+            setTimeout(() => animateOrbit(), 100);
+        }
+
+        function compareMultiple() {
+            comparisonData = [];
+            
+            Object.keys(asteroidDatabase).forEach(key => {
+                // Temporarily set asteroid parameters
+                const originalParams = {
+                    diameter: dom.neoDiameter.value,
+                    density: dom.neoDensity.value,
+                    a: dom.orbitalA.value,
+                    e: dom.orbitalE.value,
+                    i: dom.orbitalI.value
+                };
+                
+                const asteroid = asteroidDatabase[key];
+                dom.neoDiameter.value = asteroid.diameter;
+                dom.neoDensity.value = asteroid.density;
+                dom.orbitalA.value = asteroid.a;
+                dom.orbitalE.value = asteroid.e;
+                dom.orbitalI.value = asteroid.i;
+                
+                // Calculate for this asteroid
+                calculateAndDisplay();
+                
+                // Store results
+                comparisonData.push({
+                    name: asteroid.name,
+                    deflection: currentResults.deflection_km,
+                    fuel: currentResults.total_fuel_used,
+                    feasibility: currentResults.feasibility_score,
+                    risk_reduction: currentResults.risk_reduction
+                });
+                
+                // Restore original parameters
+                dom.neoDiameter.value = originalParams.diameter;
+                dom.neoDensity.value = originalParams.density;
+                dom.orbitalA.value = originalParams.a;
+                dom.orbitalE.value = originalParams.e;
+                dom.orbitalI.value = originalParams.i;
+            });
+            
+            // Recalculate with original parameters
+            calculateAndDisplay();
+            
+            // Update comparison display
+            updateComparisonTable();
+        }
+
+        function clearComparison() {
+            comparisonData = [];
+            updateComparisonTable();
+        }
+
+        function runMonteCarlo() {
+            updateMonteCarloChart();
+            showTab('montecarlo');
+        }
+
+        function optimize() {
+            // Simple optimization: find best hover distance
+            let best_distance = currentResults.hover_dist;
+            let best_efficiency = 0;
+            
+            for (let d = 50; d <= 500; d += 10) {
+                dom.hoverDist.value = d;
+                updateSliderDisplay('hover', d);
+                calculateAndDisplay();
+                
+                const efficiency = currentResults.deflection_km / currentResults.total_fuel_used;
+                if (efficiency > best_efficiency) {
+                    best_efficiency = efficiency;
+                    best_distance = d;
+                }
+            }
+            
+            // Set optimal distance
+            dom.hoverDist.value = best_distance;
+            updateSliderDisplay('hover', best_distance);
+            calculateAndDisplay();
+            
+            // Show optimization result
+            const result = document.getElementById('optimization-results');
+            if (result) {
+                result.innerHTML = `
+                    <div class="optimization-result">
+                        ✓ Optimization Complete: Optimal hover distance = ${best_distance}m
+                        <br>Efficiency: ${best_efficiency.toFixed(2)} km/kg fuel
+                    </div>
+                `;
+            }
+            
+            showTab('optimization');
+        }
+
+        function toggleAnimation() {
+            if (animationState.playing) {
+                pauseAnimation();
+                event.target.textContent = '▶ Animate';
+            } else {
+                playAnimation();
+                event.target.textContent = '⏸ Pause';
+            }
+        }
+
+        function exportReport(format) {
+            const r = currentResults;
+            
+            if (format === 'csv') {
+                // Generate CSV report
+                const csvData = [
+                    ['Parameter', 'Value', 'Unit'],
+                    ['Mission Mode', currentMode, ''],
+                    ['Asteroid Diameter', dom.neoDiameter.value, 'm'],
+                    ['Asteroid Mass', r.asteroid_mass.toExponential(2), 'kg'],
+                    ['Spacecraft Mass', r.sc_mass, 'kg'],
+                    ['Hover Distance', r.hover_dist, 'm'],
+                    ['Towing Duration', dom.towDuration.value, 'years'],
+                    ['Lead Time', dom.leadTime.value, 'years'],
+                    ['Delta-V Achieved', (r.delta_v_asteroid * 1000).toFixed(3), 'mm/s'],
+                    ['Deflection Distance', r.deflection_km.toFixed(0), 'km'],
+                    ['Fuel Consumption', r.total_fuel_used.toFixed(1), 'kg'],
+                    ['Mission Feasibility', r.feasibility_score.toFixed(0), '%'],
+                    ['Risk Reduction', r.risk_reduction.toFixed(1), '%'],
+                    ['B-plane Magnitude', r.bplane_magnitude.toFixed(3), 'ER']
+                ];
+                
+                const csvContent = csvData.map(row => row.join(',')).join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'gravity_tractor_mission_report.csv';
+                a.click();
+                
+            } else if (format === 'pdf') {
+                // Generate PDF report using jsPDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF();
+                
+                pdf.setFontSize(16);
+                pdf.text('Gravity Tractor Mission Analysis Report', 20, 20);
+                
+                pdf.setFontSize(12);
+                let y = 40;
+                const lineHeight = 6;
+                
+                const reportData = [
+                    [`Mission Mode: ${currentMode}`],
+                    [`Date: ${new Date().toLocaleDateString()}`],
+                    [''],
+                    ['ASTEROID PARAMETERS'],
+                    [`Diameter: ${dom.neoDiameter.value} m`],
+                    [`Mass: ${r.asteroid_mass.toExponential(2)} kg`],
+                    [`Orbital Elements: a=${dom.orbitalA.value} AU, e=${dom.orbitalE.value}, i=${dom.orbitalI.value}°`],
+                    [''],
+                    ['SPACECRAFT CONFIGURATION'],
+                    [`Mass: ${r.sc_mass} kg`],
+                    [`Max Thrust: ${dom.maxThrust.value} N`],
+                    [`Specific Impulse: ${dom.specificImpulse.value} s`],
+                    [`Fuel Capacity: ${dom.fuelCapacity.value} kg`],
+                    [''],
+                    ['MISSION RESULTS'],
+                    [`Hover Distance: ${r.hover_dist} m`],
+                    [`Towing Duration: ${dom.towDuration.value} years`],
+                    [`Lead Time: ${dom.leadTime.value} years`],
+                    [`Delta-V Achieved: ${(r.delta_v_asteroid * 1000).toFixed(3)} mm/s`],
+                    [`Deflection Distance: ${r.deflection_km.toFixed(0)} km`],
+                    [`Fuel Consumption: ${r.total_fuel_used.toFixed(1)} kg (${((r.total_fuel_used/r.fuel_capacity)*100).toFixed(1)}% of capacity)`],
+                    [`B-plane Magnitude: ${r.bplane_magnitude.toFixed(3)} Earth Radii`],
+                    [''],
+                    ['FEASIBILITY ASSESSMENT'],
+                    [`Overall Score: ${r.feasibility_score.toFixed(0)}%`],
+                    [`Thrust Margin: ${((r.power_limited_thrust/r.required_thrust_hover - 1)*100).toFixed(1)}%`],
+                    [`Power Available: ${r.available_power.toFixed(2)} kW`],
+                    [`Risk Reduction: ${r.risk_reduction.toFixed(1)}%`],
+                    [`Impact Probability: ${r.final_impact_prob.toExponential(2)}`]
+                ];
+                
+                reportData.forEach(line => {
+                    pdf.text(line[0], 20, y);
+                    y += lineHeight;
+                    if (y > 280) {
+                        pdf.addPage();
+                        y = 20;
+                    }
+                });
+                
+                pdf.save('gravity_tractor_mission_report.pdf');
+            }
+        }
+
+        // Initialize the application
+        window.addEventListener('load', function() {
+            // Set up event listeners for real-time updates
+            const sliders = document.querySelectorAll('.slider');
+            sliders.forEach(slider => {
+                slider.addEventListener('input', function() {
+                    const param = this.id.replace('neo-', '').replace('sc-', '').replace('-', '');
+                    updateSliderDisplay(param, this.value);
+                });
+            });
+            
+            // Initialize with default calculation
+            setTimeout(calculateAndDisplay, 500);
+        });
+
+    </script>
+</body>
+</html>

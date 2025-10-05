@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroid Impact Simulation Tool</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-meteor"></i> Asteroid Impact Simulation Tool</h1>
+            <p>Analyze the potential effects of asteroid impacts using NASA population data</p>
+        </header>
+
+        <!-- Three Panel Layout -->
+        <div class="three-panel-layout">
+            <!-- Left Panel - Input Controls -->
+            <div class="left-panel">
+                <div class="panel-content">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-sliders-h"></i> Impact Parameters</h2>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="diameter-slider" class="form-label">Asteroid Diameter: <span id="diameter-value">100</span>m</label>
+                        <input type="range" id="diameter-slider" class="slider" min="10" max="1000" value="100" step="10">
+                        <div class="slider-marks">
+                            <span>10m</span>
+                            <span>500m</span>
+                            <span>1000m</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="velocity-slider" class="form-label">Impact Velocity: <span id="velocity-value">20</span> km/s</label>
+                        <input type="range" id="velocity-slider" class="slider" min="11" max="72" value="20" step="1">
+                        <div class="slider-marks">
+                            <span>11</span>
+                            <span>40</span>
+                            <span>72</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="angle-slider" class="form-label">Impact Angle: <span id="angle-value">45</span>°</label>
+                        <input type="range" id="angle-slider" class="slider" min="15" max="90" value="45" step="5">
+                        <div class="slider-marks">
+                            <span>15°</span>
+                            <span>45°</span>
+                            <span>90°</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="density-slider" class="form-label">Density: <span id="density-value">2600</span> kg/m³</label>
+                        <input type="range" id="density-slider" class="slider" min="1000" max="8000" value="2600" step="100">
+                        <div class="slider-marks">
+                            <span>1k</span>
+                            <span>4k</span>
+                            <span>8k</span>
+                        </div>
+                    </div>
+
+                    <!-- Water Depth Section (Only for Ocean Impacts) -->
+                    <div class="form-group" id="water-depth-group" style="display: none;">
+                        <label for="water-depth-slider" class="form-label">
+                            Water Depth: <span id="water-depth-value">4000</span> m
+                        </label>
+                        <input type="range" id="water-depth-slider" class="slider"
+                               min="100" max="6000" value="4000" step="100">
+                        <div class="slider-marks">
+                            <span>100m</span>
+                            <span>3000m</span>
+                            <span>6000m</span>
+                        </div>
+                        <div class="depth-presets">
+                            <button type="button" class="preset-btn" onclick="setWaterDepth(500)">
+                                <i class="fas fa-water"></i>
+                                Shallow<br><small>500m</small>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="setWaterDepth(4000)" data-default="true">
+                                <i class="fas fa-waves"></i>
+                                Average<br><small>4000m</small>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="setWaterDepth(6000)">
+                                <i class="fas fa-ship"></i>
+                                Deep<br><small>6000m</small>
+                            </button>
+                        </div>
+                        <div class="parameter-note">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Ocean depth affects tsunami generation. Average ocean depth is ~4km.</span>
+                        </div>
+                    </div>
+
+
+                    <div class="location-info">
+                        <h3><i class="fas fa-map-marker-alt"></i> Impact Location</h3>
+                        <div class="coordinates-display">
+                            <div class="coord-item">
+                                <span class="coord-label">Latitude:</span>
+                                <span id="lat-display">21.1458°N</span>
+                            </div>
+                            <div class="coord-item">
+                                <span class="coord-label">Longitude:</span>
+                                <span id="lon-display">79.0882°E</span>
+                            </div>
+                        </div>
+                        <div class="impact-type-display">
+                            <span class="coord-label">Impact Type:</span>
+                            <span id="impact-type-display" class="impact-type-land">Land Impact</span>
+                        </div>
+                        <div class="population-preview">
+                            <span class="coord-label">Population Density:</span>
+                            <span id="population-preview">Loading...</span>
+                        </div>
+                    </div>
+
+                    <!-- Target Material Density Section (Only for Land Impacts) -->
+                    <div class="form-group" id="target-density-group" style="display: none;">
+                        <label for="target-density-slider" class="form-label">
+                            Target Material Density: <span id="target-density-value">2700</span> kg/m³
+                        </label>
+                        <input type="range" id="target-density-slider" class="slider"
+                               min="1000" max="4000" value="2700" step="100">
+                        <div class="slider-marks">
+                            <span>1000</span>
+                            <span>2500</span>
+                            <span>4000</span>
+                        </div>
+                        <div class="density-presets">
+                            <button type="button" class="preset-btn" onclick="setTargetDensity(1500)">
+                                <i class="fas fa-seedling"></i>
+                                Sediment<br><small>1500 kg/m³</small>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="setTargetDensity(2700)" data-default="true">
+                                <i class="fas fa-mountain"></i>
+                                Rock<br><small>2700 kg/m³</small>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="setTargetDensity(3200)">
+                                <i class="fas fa-gem"></i>
+                                Hard Rock<br><small>3200 kg/m³</small>
+                            </button>
+                        </div>
+                        <div class="parameter-note">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Target material affects crater formation. Ocean impacts use seawater density (1025 kg/m³) automatically.</span>
+                        </div>
+                    </div>
+
+                    <div class="nasa-status">
+                        <h3><i class="fas fa-database"></i> Data Source</h3>
+                        <div class="status-item">
+                            <i id="data-source-icon" class="fas fa-satellite success"></i>
+                            <div class="status-text">
+                                <span class="status-label">Population Data:</span>
+                                <span id="data-source-value" class="status-value">NASA SEDAC (Live)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="test-nasa-api" class="btn btn--secondary btn--sm">
+                            <i class="fas fa-satellite"></i> Test API
+                        </button>
+                        <button id="calculate-btn" class="btn btn--primary">
+                            <i class="fas fa-calculator"></i> Calculate Effects
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel - Interactive Map -->
+            <div class="center-panel">
+                <div class="panel-content">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-globe"></i> Impact Location</h2>
+                        <div class="map-instructions">
+                            <span>Click on the map or drag the marker to select impact location</span>
+                        </div>
+                    </div>
+                    <div id="map"></div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Effects Output -->
+            <div class="right-panel">
+                <div class="panel-content">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-chart-area"></i> Impact Analysis</h2>
+                    </div>
+                    
+                    <div id="results-content">
+                        <div class="results-placeholder">
+                            <i class="fas fa-calculator"></i>
+                            <p>Click "Calculate Effects" to analyze the impact</p>
+                        </div>
+
+                        <div id="results-section" class="hidden">
+                            <div class="results-tabs" id="results-tabs">
+                                <button class="tab-button active" data-tab="physical">
+                                    <i class="fas fa-bomb"></i> Physical
+                                </button>
+                                <button class="tab-button" data-tab="casualties">
+                                    <i class="fas fa-user-injured"></i> Casualties
+                                </button>
+                                <button class="tab-button hidden" data-tab="tsunami" id="tsunami-tab-button">
+                                    <i class="fas fa-water"></i> Tsunami
+                                </button>
+                                <button class="tab-button" data-tab="nasadata">
+                                    <i class="fas fa-satellite"></i> NASA Data
+                                </button>
+                            </div>
+
+                            <div class="tab-content">
+                                <!-- Physical Effects Tab -->
+                                <div id="physical-tab" class="tab-panel active">
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-bomb"></i> Impact Energy</h4>
+                                        <div class="metric">
+                                            <span id="total-energy" class="metric-value">0</span>
+                                            <span class="metric-unit">Megatons TNT</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-bullseye"></i> Crater Size</h4>
+                                        <div class="metric">
+                                            <span id="crater-diameter" class="metric-value">0</span>
+                                            <span class="metric-unit">km diameter</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="blast-zones-compact">
+                                        <h4><i class="fas fa-fire"></i> Blast Effects</h4>
+                                        <div class="zone-list">
+                                            <div class="zone-item">
+                                                <span class="zone-label">Fireball:</span>
+                                                <span id="fireball-radius" class="zone-value">0 km</span>
+                                            </div>
+                                            <div class="zone-item">
+                                                <span class="zone-label">Ejecta Zone:</span>
+                                                <span id="ejecta-range" class="zone-value">0 km</span>
+                                            </div>
+                                            <div class="zone-item">
+                                                <span class="zone-label">Air blast (neglects p < 6900 Pa):</span>
+                                                <span id="airblast-range" class="zone-value">0 km</span>
+                                            </div>
+                                            <div class="zone-item">
+                                                <span class="zone-label">Thermal Range:</span>
+                                                <span id="thermal-range" class="zone-value">0 km</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-mountain"></i> Environmental</h4>
+                                        <div class="env-list">
+                                            <div class="env-item">
+                                                <span class="env-label">Seismic magnitude:</span>
+                                                <span id="seismic-magnitude" class="env-value">0.0</span>
+                                            </div>
+                                            <div class="env-item">
+                                                <span class="env-label">Ejecta volume:</span>
+                                                <span id="ejecta-volume" class="env-value">0 m³</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-cloud"></i> Atmospheric Effects</h4>
+                                        <p id="atmospheric-effects" class="atmospheric-description">
+                                            Click calculate to see atmospheric effects
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- Casualties Tab -->
+                                <div id="casualties-tab" class="tab-panel">
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-users"></i> Affected Population</h4>
+                                        <div class="metric">
+                                            <span id="affected-population" class="metric-value">0</span>
+                                            <span class="metric-unit">people</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-exclamation-triangle"></i> Risk Assessment</h4>
+                                        <div class="metric">
+                                            <span id="risk-level" class="metric-value risk-moderate">Moderate</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="casualty-breakdown-compact">
+                                        <h4><i class="fas fa-skull-crossbones"></i> Casualties</h4>
+                                        <div class="casualty-list">
+                                            <div class="casualty-item">
+                                                <span class="casualty-cause">Crater deaths:</span>
+                                                <span id="crater-deaths" class="casualty-count">0</span>
+                                            </div>
+                                            <div class="casualty-item">
+                                                <span class="casualty-cause">Fireball deaths:</span>
+                                                <span id="fireball-deaths" class="casualty-count">0</span>
+                                            </div>
+                                            <div class="casualty-item">
+                                                <span class="casualty-cause">Ejecta deaths:</span>
+                                                <span id="ejecta-deaths" class="casualty-count">0</span>
+                                            </div>
+                                            <div class="casualty-item">
+                                                <span class="casualty-cause">Air blast deaths:</span>
+                                                <span id="airblast-deaths" class="casualty-count">0</span>
+                                            </div>
+                                            <div class="casualty-item">
+                                                <span class="casualty-cause">Thermal deaths:</span>
+                                                <span id="thermal-deaths" class="casualty-count">0</span>
+                                            </div>
+                                            <div class="casualty-item total-casualties">
+                                                <span class="casualty-cause">Total deaths:</span>
+                                                <span id="total-deaths" class="casualty-count">0</span>
+                                            </div>
+                                            <div class="casualty-item">
+                                                <span class="casualty-cause">Severe injuries:</span>
+                                                <span id="severe-injuries" class="casualty-count">0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Tsunami Tab - NEW -->
+                                <div id="tsunami-tab" class="tab-panel">
+                                    <div class="tsunami-header">
+                                        <h3><i class="fas fa-water"></i> Tsunami Impact Analysis</h3>
+                                        <div class="tsunami-summary">
+                                            <div class="tsunami-overview">
+                                                <p>Ocean impact generates complex tsunami waves with multiple propagation patterns.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="tsunami-metrics-grid">
+                                        <!-- Max Wave Height Card -->
+                                        <div class="tsunami-metric-card highlight">
+                                            <div class="metric-header">
+                                                <i class="fas fa-arrow-up"></i>
+                                                <h4>Maximum Wave Height</h4>
+                                            </div>
+                                            <div class="metric-value" id="tsunami-max-height">-</div>
+                                            <div class="metric-unit">meters</div>
+                                            <div class="metric-description">Peak amplitude at generation source</div>
+                                        </div>
+                                        
+                                        <!-- Impact Radius Card -->
+                                        <div class="tsunami-metric-card highlight">
+                                            <div class="metric-header">
+                                                <i class="fas fa-expand-arrows-alt"></i>
+                                                <h4>Impact Radius</h4>
+                                            </div>
+                                            <div class="metric-value" id="tsunami-range">-</div>
+                                            <div class="metric-unit">kilometres</div>
+                                            <div class="metric-description">Range of tsunami (neglecting wave height < 100 m)</div>
+                                        </div>
+                                        
+                                        <!-- Wave Speed Card -->
+                                        <div class="tsunami-metric-card">
+                                            <div class="metric-header">
+                                                <i class="fas fa-tachometer-alt"></i>
+                                                <h4>Wave Speed</h4>
+                                            </div>
+                                            <div class="metric-value" id="tsunami-wave-speed">-</div>
+                                            <div class="metric-unit">m/s</div>
+                                            <div class="metric-description">Water propagation speed</div>
+                                        </div>
+                                        
+                                        <!-- Coastal Arrival Time Card -->
+                                        <div class="tsunami-metric-card">
+                                            <div class="metric-header">
+                                                <i class="fas fa-clock"></i>
+                                                <h4>Coastal Arrival Time</h4>
+                                            </div>
+                                            <div class="metric-value" id="tsunami-arrival-time">-</div>
+                                            <div class="metric-unit">minutes</div>
+                                            <div class="metric-description">Time to reach coastline (assuming 100km)</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="tsunami-physics-section">
+                                        <h4><i class="fas fa-wave-square"></i> Wave Physics</h4>
+                                        <div class="physics-details" id="tsunami-physics-details">
+                                            <!-- Physics details populated by JavaScript -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- NASA Data Tab -->
+                                <div id="nasadata-tab" class="tab-panel">
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-satellite"></i> Data Sources</h4>
+                                        <div class="data-source-info">
+                                            <div class="source-item">
+                                                <i class="fas fa-database"></i>
+                                                <div>
+                                                    <div class="source-name">Population Data</div>
+                                                    <div id="data-source-detail" class="source-detail">NASA SEDAC API</div>
+                                                </div>
+                                            </div>
+                                            <div class="source-item">
+                                                <i class="fas fa-crosshairs"></i>
+                                                <div>
+                                                    <div class="source-name">Resolution</div>
+                                                    <div id="accuracy-detail" class="source-detail">1km grid</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="result-card">
+                                        <h4><i class="fas fa-info-circle"></i> Attribution</h4>
+                                        <p class="attribution-text">
+                                            Population data courtesy of NASA Socioeconomic Data and Applications Center (SEDAC). 
+                                            Impact calculations based on established scientific models.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
