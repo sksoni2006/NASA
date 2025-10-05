@@ -5,13 +5,13 @@ const Mitigation = () => {
   const openNeoDeflectionApp = (method) => {
     switch (method) {
       case 'kinetic_impactor':
-        window.open('../public/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
+        window.open('/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
         break;
       case 'gravity_tractor':
-        window.open('../public/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
+        window.open('/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
         break;
       case 'nuclear':
-        window.open('../public/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
+        window.open('/NASA_JPL_NEO_Deflection_App/nda_frame.html', '_blank')
         break;
       default:
         console.error('Unknown deflection method:', method)
