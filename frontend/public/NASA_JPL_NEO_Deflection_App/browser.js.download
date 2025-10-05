@@ -1,0 +1,44 @@
+/*
+ * File: browser.js
+ * Description: This file contains a set of utility functions that allow
+ *              are browser related
+ *
+ * Author: Thaddeus O. Cooper <tcooper@nomoreboxes.com>
+ * Date: 13 Feb. 2007
+ * Version 1.0
+ */
+var windowsInternetExplorer = false;	/* the browser that is being used */
+					/* internet explorer              */
+var firefox = false;			/* the browser that is being used */
+					/* is firefox                     */
+var browserVersion = 0;			/* the version of the browser     */
+
+/*
+ * Function: detectBrowser
+ * Description: Determines what the browser is that the client was loaded into.
+ * Parameters: None
+ * Returns: None
+ * Side Effects: Sets either firefox or windowsInternetExplorer depending on
+ *               the browser. If it is not one of those browsers neither 
+ *               variable is set.
+ */
+function detectBrowser() {
+	windowsInternetExplorer = false;
+	var appVersion = navigator.appVersion;
+	var temp;
+
+	if ((appVersion.indexOf("MSIE") != -1) && (appVersion.indexOf("Macintosh") == -1)) {
+		temp = appVersion.split("MSIE");
+
+		browserVersion = parseFloat(temp[1]);
+		windowsInternetExplorer = true;
+	}
+	else if (navigator.userAgent.indexOf("Firefox") != -1) {
+		firefox = true;
+	}
+}       
+
+// IE9 doesnt' use the the textContent function
+function neoGetText(el) {
+    return el.textContent || el.text;
+}

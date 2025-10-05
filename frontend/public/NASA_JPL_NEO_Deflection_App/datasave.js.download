@@ -1,0 +1,445 @@
+
+var currentLoadedState = "";  // All fields will load with default values if the string is empty
+
+function initDataSave() {
+    try {
+        if (!window.localStorage) {
+            Object.defineProperty(window, "localStorage", new (function() {
+                var aKeys = [], oStorage = {};
+                Object.defineProperty(oStorage, "getItem", {
+                    value: function(sKey) {
+                        return sKey ? this[sKey] : null;
+                    },
+                    writable: false,
+                    configurable: false,
+                    enumerable: false
+                });
+                Object.defineProperty(oStorage, "key", {
+                    value: function(nKeyId) {
+                        return aKeys[nKeyId];
+                    },
+                    writable: false,
+                    configurable: false,
+                    enumerable: false
+                });
+                Object.defineProperty(oStorage, "setItem", {
+                    value: function(sKey, sValue) {
+                        if (!sKey) {
+                            return;
+                        }
+                        document.cookie = escape(sKey) + "=" + escape(sValue) + "; expires=Tue, 19 Jan 2038 03:14:07 GMT; path=/";
+                    },
+                    writable: false,
+                    configurable: false,
+                    enumerable: false
+                });
+                Object.defineProperty(oStorage, "length", {
+                    get: function() {
+                        return aKeys.length;
+                    },
+                    configurable: false,
+                    enumerable: false
+                });
+                Object.defineProperty(oStorage, "removeItem", {
+                    value: function(sKey) {
+                        if (!sKey) {
+                            return;
+                        }
+                        document.cookie = escape(sKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+                    },
+                    writable: false,
+                    configurable: false,
+                    enumerable: false
+                });
+                this.get = function() {
+                    var iThisIndx;
+                    for (var sKey in oStorage) {
+                        iThisIndx = aKeys.indexOf(sKey);
+                        if (iThisIndx === -1) {
+                            oStorage.setItem(sKey, oStorage[sKey]);
+                        }
+                        else {
+                            aKeys.splice(iThisIndx, 1);
+                        }
+                        delete oStorage[sKey];
+                    }
+                    for (aKeys; aKeys.length > 0; aKeys.splice(0, 1)) {
+                        oStorage.removeItem(aKeys[0]);
+                    }
+                    for (var aCouple, iKey, nIdx = 0, aCouples = document.cookie.split(/\s*;\s*/); nIdx < aCouples.length; nIdx++) {
+                        aCouple = aCouples[nIdx].split(/\s*=\s*/);
+                        if (aCouple.length > 1) {
+                            oStorage[iKey = unescape(aCouple[0])] = unescape(aCouple[1]);
+                            aKeys.push(iKey);
+                        }
+                    }
+                    return oStorage;
+                };
+                this.configurable = false;
+                this.enumerable = true;
+            })());
+        }
+    } catch (err) {
+        jQuery("#savesessionbutton").hide();
+        jQuery("#restorsessionbutton").hide();
+    }
+    if (!storage) {
+        jQuery("#savesessionbutton").hide();
+        jQuery("#restorsessionbutton").hide();        
+    }
+}
+
+function createSaveString() {
+    var currentdate = new Date();
+    var datetime = "" + (currentdate.getMonth()+1) + "/" + currentdate.getDate() 
+                    + "/" + currentdate.getFullYear() + "@" 
+                    + currentdate.getHours() + ":" 
+                    + currentdate.getMinutes() + ":" + currentdate.getSeconds();
+    var nameList = jQuery( "#object option:selected" ).text().split(' a=');
+    var str = "object|" + jQuery('#object').val() +
+              ";objectname|" + nameList[0] +
+              ";datetime|" + datetime + 
+              ";advancedcheckbox|" + $('advancedcheckbox').checked+
+              ";td|" +getTdDays().toFixed(0)+ 
+              ";tof|" +getTofDays().toFixed(0)+ 
+              ";dva|" +$('deltava').getValue()+
+              ";dvc|" +$('deltavc').getValue()+
+              ";dvn|" +$('deltavn').getValue()+
+              ";deltavmode|" +isDeltaVMode()+ 
+              ";v1|" +$('vehicle1').value+ "#" +$('numLaunches1').value+
+              ";v2|" +$('vehicle2').value+ "#" +$('numLaunches2').value+
+              ";v3|" +$('vehicle3').value+ "#" +$('numLaunches3').value+
+              ";diameter|" +$('objectDiameter').getValue()+ 
+              ";densityText|" + jQuery('#objectDensityText').val()+
+              ";density|" + jQuery('#objectDensity').val() + 
+              ";betaText|" + jQuery('#betaText').val()+
+              ";beta|" + jQuery('#beta').val() +
+              ";displacement|" + currentDisplacement.toFixed(3) +
+              ";bMagnitude|" + currentBMag.toFixed(3) +
+              ";missDist|" + (currentPerigeeDist > 1 ? (currentPerigeeDist - 1).toFixed(3) : "Impact") +
+              ";" + extension1_saveString();
+    return str;
+}
+
+function getNextAvailableIdx() {
+    if (storage) {
+        var i=0;
+        var item = "";
+        while (true) {
+            item = storage.getItem("SESSION_"+i);
+            if (!item) {
+                break;
+            }
+            i++;
+        }
+    }    
+    return i;
+}
+
+function saveState () {
+    if (storage) {
+        var itemIdx = getNextAvailableIdx();
+        var saveStr = createSaveString();
+        storage.setItem("SESSION_"+itemIdx, saveStr);     
+    } else
+        noStorageMessage();
+}
+
+function restoreFieldsFromCurrentState() {
+    var savedStr = currentLoadedState;
+    var items = savedStr.split(';');
+    var fields = [];
+    
+    // default values for all the fields
+    var objectVal = jQuery('#object').val();
+    var advancedcheckbox = "";
+    var td = "1096";
+    var tof = "400";
+    var dva = "0";
+    var dvc = "0";
+    var dvn = "0";
+    var deltavmode = "true";
+    var v1 = "atlas551";
+    var v2 = "delta4hvy";
+    var v3 = "falconhvy";
+    var nov1 = "1";
+    var nov2 = "0";
+    var nov3 = "0";
+    var densityText = "1.5";
+    var density = "1.5";
+    var betaText = "1";
+    var beta = "1";
+    var diameter = "0.14";
+    var temp = [];
+    var len = 0;
+
+    len = items.length;
+    for (var i=0; i < len; i++) {
+        fields = items[i].split('|');
+        if (fields[0] === 'object') { objectVal = fields[1]; continue; }
+        if (fields[0] === 'advancedcheckbox') { advancedcheckbox = fields[1]; continue; }
+        if (fields[0] === 'td')       { td = fields[1]; continue; }
+        if (fields[0] === 'tof')      { tof = fields[1]; continue; }
+        if (fields[0] === 'dva')      { dva = fields[1]; continue; }
+        if (fields[0] === 'dvc')      { dvc = fields[1]; continue; }
+        if (fields[0] === 'dvn')      { dvn = fields[1]; continue; }
+        if (fields[0] === 'deltavmode') { deltavmode = fields[1]; continue; }
+        if (fields[0] === 'v1')       { temp = fields[1].split('#'); v1 = temp[0]; nov1 = temp[1]; continue; }
+        if (fields[0] === 'v2')       { temp = fields[1].split('#'); v2 = temp[0]; nov2 = temp[1]; continue; }
+        if (fields[0] === 'v3')       { temp = fields[1].split('#'); v3 = temp[0]; nov3 = temp[1]; continue; }
+        if (fields[0] === 'densityText') { densityText = fields[1]; continue; }
+        if (fields[0] === 'density')  { density = fields[1]; continue; }
+        if (fields[0] === 'betaText') { betaText = fields[1]; continue; }
+        if (fields[0] === 'beta')     { beta = fields[1]; continue; }
+        if (fields[0] === 'diameter') { diameter = fields[1]; continue; }
+    }
+    jQuery("#object").val(objectVal);
+    jQuery("#tabs").tabs("option", "active", deltavmode==="true" ? 0 : 1);
+    if (advancedcheckbox !== ""){
+        $('advancedcheckbox').checked = advancedcheckbox === "true";
+        advancedClicked();
+    }
+    setTdValue(Number(td));
+    setTofValue(Number(tof));
+    setDeltaValues(Number(dva), Number(dvc), Number(dvn));
+    jQuery('#vehicle1').val(v1);
+    jQuery('#vehicle2').val(v2);
+    jQuery('#vehicle3').val(v3);
+    jQuery('#numLaunches1').val(nov1);
+    jQuery('#numLaunches2').val(nov2);
+    jQuery('#numLaunches3').val(nov3);
+    jQuery('#objectDensity').val(density);
+    jQuery('#objectDensityText').val(Number(densityText));
+    jQuery('#beta').val(beta);
+    jQuery('#betaText').val(Number(betaText));
+    jQuery('#objectDiameter').val(Number(diameter));
+
+    extension1_restoreFromState(savedStr);
+}
+
+var restoreTable = {}; 
+
+function restoreAState() {
+    if (!storage)
+        noStorageMessage();
+    else {
+        createRestoreTable();
+        jQuery('#restoreSessionDialog').dialog('open');
+    }
+}
+
+function tableRowStringFromSavedString(key, savedStr) {
+    if (savedStr === 'undefined' || !savedStr)
+        return "";
+    var items = savedStr.split(';');
+    var fields = [];
+    
+    // default values for all the fields
+    var objectVal = "";
+    var objectName = "";
+//    var datetime = "";
+    var day = "";
+    var time = "";
+    var advancedcheckbox = "";
+    var td = "";
+    var tof = "";
+    var displacement = "";
+    var bMag = "";
+    var missDist = "";
+    var deltavmode = "";
+    var v1 = "";
+    var v2 = "";
+    var v3 = "";
+    var nov1 = "";
+    var nov2 = "";
+    var nov3 = "";
+    var densityText = "";
+    var density = "";
+    var betaText = "";
+    var beta = "";
+    var diameter = "";
+    var temp = [];
+    var len = 0;
+
+    len = items.length;
+    for (var i = 0; i < len; i++) {
+        fields = items[i].split('|');
+        if (fields[0] === 'object') { objectVal = fields[1]; continue; }
+        if (fields[0] === 'objectname') { objectName = fields[1]; continue; }
+        if (fields[0] === 'datetime') { temp = fields[1].split('@'); day = temp[0]; time = temp[1]; continue; }
+        if (fields[0] === 'advancedcheckbox') { advancedcheckbox = fields[1]; continue; }
+        if (fields[0] === 'td')       { td = fields[1]; continue; }
+        if (fields[0] === 'tof')      { tof = fields[1]; continue; }
+        if (fields[0] === 'displacement') { displacement = fields[1]; continue; }
+        if (fields[0] === 'bMagnitude')   { bMag = fields[1]; continue; }
+        if (fields[0] === 'missDist')  { missDist = fields[1]; continue; }
+        if (fields[0] === 'deltavmode') { deltavmode = fields[1]; continue; }
+        if (fields[0] === 'v1')       { temp = fields[1].split('#'); v1 = temp[0]; nov1 = temp[1]; continue; }
+        if (fields[0] === 'v2')       { temp = fields[1].split('#'); v2 = temp[0]; nov2 = temp[1]; continue; }
+        if (fields[0] === 'v3')       { temp = fields[1].split('#'); v3 = temp[0]; nov3 = temp[1]; continue; }
+        if (fields[0] === 'densityText') { densityText = fields[1]; continue; }
+        if (fields[0] === 'density')  { density = fields[1]; continue; }
+        if (fields[0] === 'betaText') { betaText = fields[1]; continue; }
+        if (fields[0] === 'beta')     { beta = fields[1]; continue; }
+        if (fields[0] === 'diameter') { diameter = fields[1]; continue; }
+    }    
+    var usedDensity = advancedcheckbox === 'true' ? densityText : density;
+    var usedBeta = advancedcheckbox === 'true' ? betaText : beta;
+    
+    var rowStr = "<tr><td>"+key+"</td><td>"+objectName+"</td><td>"+day + "@" +time+"</td><td>"+td+"</td><td>"+tof+"</td><td>"+displacement+
+                 "</td><td>"+bMag+"</td><td>"+missDist+"</td><td>"+usedDensity+"</td><td>"+usedBeta+"</td><td>"+diameter+"</td></tr>";
+    return rowStr;
+}
+
+function restoreTableHeaderString() {
+    var headerStr = "<thead><tr><th style='width: 150px;'>Key</th><th>Near Earth Object</th><th>Date Saved</th><th>Deflect Time (days)</th>" + 
+                         "<th>Flight Time (days)</th><th>Displacement (R<sub>e</sub>)</th><th>b Mag (R<sub>e</sub>)</th><th>Miss Dist (R<sub>e</sub>)</th>" + 
+                         "<th>Density (<sup>g</sup>&frasl;<sub>cm<sup>3</sup></sub>)</th><th>Beta</th><th>Diameter (km)</th></tr></thead>";
+    
+    return headerStr;
+}
+
+var states = [];
+
+function createRestoreTable() {
+    var tableHTML = "";
+    var len = 0;
+    if (storage) {
+        var key = "";
+        var itemStr = "";
+        tableHTML += restoreTableHeaderString() + "<tbody>";
+        len = storage.length;
+        for (var i = 0; i < len; i++) {
+            key = storage.key(i);
+            if (key.indexOf("SESSION_") > -1) {  // only use keys that begin with SESSION_
+                states[i] = { key : key, item: storage.getItem(key) };  // may need to save the states list depending on how data can be retrieved from the table
+                tableHTML += tableRowStringFromSavedString(key, states[i].item);
+            }
+        }
+        tableHTML += "</tbody>";
+    }
+    jQuery('#restoreListTable').html(tableHTML);
+    if (restoreTable && restoreTable.hasOwnProperty('destroy'))
+        restoreTable.destroy();
+    restoreTable = jQuery('#restoreListTable').DataTable({
+        "sPaginationType": "full_numbers",
+        "bJQueryUI": true,
+        "bAutoWidth": false, // Disable the auto width calculation 
+        dom: 'T<"clear">lfrtip',
+        tableTools: {
+            "sRowSelect": "os",
+            "aButtons": [ "select_all", "select_none" ]
+        },
+       "aoColumns": [
+        { "bVisible": false },
+        { "sWidth": "180px" }, // 1st column width 
+        { "sWidth": "60px" }, // 2nd column width etc
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" }, 
+        { "sWidth": "30px" } 
+        ],
+        "oLanguage": {
+                "sLengthMenu": "Display _MENU_ sessions per page",
+                "sZeroRecords": "No Saved Sessions",
+                "sInfo": "Showing _START_ to _END_ of _TOTAL_ sessions",
+                "sInfoEmpty": "No Saved Sessions",
+                "sInfoFiltered": "(filtered from _MAX_ total sessions)"
+            }
+        });
+}
+
+function restoreSelectedSessionClicked() {
+    var oTT = TableTools.fnGetInstance( 'restoreListTable' );
+    var aData = oTT.fnGetSelectedData();
+    if (aData.length !== 1) {
+        alert("Please select a single\nsession to be loaded.");
+    } else {
+        var key = aData[0][0];
+        var sessionStr = storage.getItem(key);
+        if (sessionStr) {
+            jQuery('#restoreSessionDialog').dialog('close');
+            currentLoadedState = sessionStr;
+            resetCharts();
+        }
+        else
+            alert("Failed to load data!");
+    }
+}
+
+function removeSelectedSessionClicked() {
+    var oTT = TableTools.fnGetInstance( 'restoreListTable' );
+    var aData = oTT.fnGetSelectedData();
+    if (aData.length < 1) {
+        alert("No sessions are selected");
+    } else {
+        var r=confirm("Permenantly delete all selected\nsessions?");
+        if (r === true)
+        {
+            var key = "";
+            var len = aData.length;
+            for (var i = 0; i < len; i++) {
+                key = aData[i][0];
+                storage.removeItem(key);
+            }
+            createRestoreTable();
+        }
+    }    
+}
+
+function removeAllSessionsClicked() {
+    var r=confirm("Permenantly delete all saved\nsessions?");
+    if (r === true)
+    {
+        clearRestoreList();
+    }
+}
+
+function cancelFromRestoreDialogClicked() {
+    jQuery('#restoreSessionDialog').dialog('close');
+}
+
+function clearRestoreList() {
+    if (storage) {
+        var key = "";
+        for (var i = storage.length -1; i>=0; i--) {
+            key = storage.key(i);
+            if (key.indexOf("SESSION_") > -1)
+                storage.removeItem(key);
+        }
+    }
+    createRestoreTable();
+}
+
+function restoreUserPreferences() {
+    if (storage) {
+        var tipsEnabled = storage.getItem("NEO_tips");
+        if (tipsEnabled)
+            $('tooltipscheckbox').checked = tipsEnabled === "true";
+        else
+            $('tooltipscheckbox').checked = true;
+        
+        var advancedEnabled = storage.getItem("NEO_advanced");
+        if (advancedEnabled)    
+            $('advancedcheckbox').checked = advancedEnabled === "true";
+        else
+            $('advancedcheckbox').checked = false;
+        advancedClicked();
+    }
+    saveUserPreferences();
+}
+
+function saveUserPreferences() {
+    if (storage) {
+        storage.setItem("NEO_tips", tooltipsEnabled());     
+        storage.setItem("NEO_advanced", isAdvancedMode());     
+    }
+}
+
+function noStorageMessage() {
+    alert("Session saving is not working\n\nPlease try refreshing your browser (F5)\nor use a different browser.");
+}

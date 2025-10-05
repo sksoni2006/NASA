@@ -1,0 +1,669 @@
+/*
+ * Class: Orbit
+ * Description:
+ * Author: Eyal Amir
+ * Version 1.0
+ */
+var G = 6.6738480e-11;          // Gravitational constant           : units are  m^3 / (kg s^2)
+var Ms = 1.98855e30;            // Mass of the sun                  : units are  kg
+var au = 149597927;             // Astronomical Units               : units are km
+
+var Orbit = Class.create({
+	initialize: function() {
+		//this.earthRadius      = NaN;
+		//this.earthAngDayOne   = NaN;
+		this.earth              = new Array();
+		this.object             = new Array();
+		this.axisWidth          = NaN;
+		this.orbitRequest       = null;
+		this.afterDataRetrieval = function(o) {};
+		this.initialized        = false;
+        this.retrogradeObj      = NaN;
+	},
+
+	initializeFromXML: function(xml) {
+		var result = xml.getElementsByTagName("result")[0];
+		//var earth = result.getElementsByTagName("earth")[0];
+		//var earthr = parseFloat($X(earth.getElementsByTagName("radius")[0]));
+		//var earthAng = parseFloat($X(earth.getElementsByTagName("earth-angle-day-one")[0]));
+		//this.setEarthRadius(earthr);
+		//this.setEarthAngleDayOne(earthAng);
+		var eartharr = new Array();
+		var earths = result.getElementsByTagName("earth");
+		var width = -1;
+		var count = 0;
+		for (var i = 0; i < earths.length; i++) {
+			var earthx = parseFloat($X(earths[i].getElementsByTagName("x-coordinate")[0]));
+			var earthy = parseFloat($X(earths[i].getElementsByTagName("y-coordinate")[0]));
+			eartharr[count] = [earthx, earthy];
+			if (Math.ceil(Math.abs(earthx)) > width)
+				width = Math.ceil(Math.abs(earthx));
+			if (Math.ceil(Math.abs(earthy)) > width)
+				width = Math.ceil(Math.abs(earthy));
+			count++;
+		}
+		this.setEarthOrbit(eartharr);
+		var objectarr = new Array();
+		var objects = result.getElementsByTagName("object");
+		count = 0;
+		for (i = 0; i < objects.length; i++) {
+			var objectx = parseFloat($X(objects[i].getElementsByTagName("x-coordinate")[0]));
+			var objecty = parseFloat($X(objects[i].getElementsByTagName("y-coordinate")[0]));
+			var objectz = parseFloat($X(objects[i].getElementsByTagName("z-coordinate")[0]));
+			var objectVx = parseFloat($X(objects[i].getElementsByTagName("x-velocity")[0]));
+			var objectVy = parseFloat($X(objects[i].getElementsByTagName("y-velocity")[0]));
+			var objectVz = parseFloat($X(objects[i].getElementsByTagName("z-velocity")[0]));
+			objectarr[count] = [objectx, objecty, objectz, objectVx, objectVy, objectVz];
+			if (Math.ceil(Math.abs(objectx)) > width)
+				width = Math.ceil(Math.abs(objectx));
+			if (Math.ceil(Math.abs(objecty)) > width)
+				width = Math.ceil(Math.abs(objecty));
+			count++;
+		}
+		this.setObjectOrbit(objectarr);
+		this.setAxisWidth(width);
+	},
+
+	processData: function(td, req) {
+		var reqXML = req.responseXML;
+		if (!reqXML) {
+			$('orbitErrors').innerHTML = "<span style=\'font-size: large;\'>Query Returned No Results</span>";
+			$('orbitErrors').show();
+			return;
+		}
+		this.initializeFromXML(reqXML);
+		this.initialized = true;
+		this.afterDataRetrieval(this, td);
+	},
+
+	getData: function(object, td) {
+		this.initialized = false;
+		var url = cgi_loc + "/getOrbits.py?format=xml&object=" + object;
+		this.orbitRequest = new Ajax.Request(
+						url,
+						{
+							method: 'get',
+							onComplete: this.processData.bind(this, td),
+							onException: function(req, exc) {
+                                showError(exc,'orbits.js:getData');
+//							    alert('orbits.js: ' + exc);
+							}
+						}
+				       );
+	},
+
+    isRetrograde : function () {
+        if (isNaN(this.retrogradeObj) && areOrbitsReady()) {
+            var orbitArray = this.getObjectOrbit();
+            var xPos_idx0 = orbitArray[0][0];
+            var yPos_idx0 = orbitArray[0][1];
+            var xPos_idx1 = orbitArray[1][0];
+            var yPos_idx1 = orbitArray[1][1];
+            var angIdx0 = Math.atan2(yPos_idx0, xPos_idx0);                     // get the angles at the index positions from the orbit data
+            var angIdx1 = Math.atan2(yPos_idx1, xPos_idx1);
+            this.retrogradeObj = (angleDelta(angIdx0,angIdx1) > 0);             // is the orbit retrograde?
+        }
+        return this.retrogradeObj;
+    },
+
+	//setEarthRadius: function(radius) {
+	//	this.earthRadius = radius;
+	//},
+
+	//getEarthRadius: function() {
+	//	return(this.earthRadius);
+	//},
+
+	//setEarthAngleDayOne: function(ang) {
+	//	this.earthAngDayOne = ang;
+	//},
+
+	//getEarthAngleDayOne: function() {
+	//	return(this.earthAngDayOne);
+	//},
+
+	setEarthOrbit: function(earth) {
+		this.earth = earth;
+	},
+
+	getEarthOrbit: function() {
+		return(this.earth);
+	},
+
+	setObjectOrbit: function(object) {
+		this.object = object;
+	},
+
+	getObjectOrbit: function() {
+		return(this.object);
+	},
+
+	setAxisWidth: function(width) {
+		this.axisWidth = width;
+	},
+
+	getAxisWidth: function() {
+		return(this.axisWidth);
+	}
+});
+
+var processingOrbits = false;
+var localTd;
+function updateOrbits(object, td) {
+
+	if (processingOrbits)
+		return; // prevent from being called multiple times
+	processingOrbits = true;
+
+	orbit.afterDataRetrieval = function(orbit, td) {
+		localTd = td;
+		orbitChart.yAxis[0].setExtremes(-orbit.axisWidth, orbit.axisWidth, false);
+	        orbitChart.xAxis[0].setExtremes(-orbit.axisWidth, orbit.axisWidth, false);
+		orbitChart.redraw();
+	};
+
+	orbit.getData(object, td);
+}
+
+var lineOfNodesTimer = null;
+var lineOfNodesElement = null;
+function drawLineOfNodes() {
+	var km2au = 6.68458712267E-9;
+
+	if (!orbit || processingOrbits || !bplane || processingBPlane) {
+		if (lineOfNodesTimer)
+			clearTimeout(lineOfNodesTimer);
+		lineOfNodesTimer = setTimeout(drawLineOfNodes, 250);
+		return;
+	}
+
+	lineOfNodesTimer = null;
+
+	if (!bplane.getLineOfNodes()) {
+		if (lineOfNodesElement) {
+			lineOfNodesElement.destroy();
+			lineOfNodesElement = null;
+		}
+		return;
+	}
+
+	if (lineOfNodesElement) {
+		lineOfNodesElement.destroy();
+		lineOfNodesElement = null;
+	}
+
+	var centerx = orbitChart.plotLeft + orbitChart.plotWidth/2;
+        var centery = orbitChart.plotTop + orbitChart.plotHeight/2;
+	var scalex = (orbitChart.plotWidth/(2*orbit.axisWidth));
+        var scaley = (orbitChart.plotHeight/(2*orbit.axisWidth));
+	var lineOfNodesPath = ['M', centerx + scalex*km2au*bplane.getLineOfNodes()[0], centery - scaley*km2au*bplane.getLineOfNodes()[1], 'L', centerx + scalex*km2au*bplane.getLineOfNodes()[2], centery - scaley*km2au*bplane.getLineOfNodes()[3]];
+        lineOfNodesElement = orbitChart.renderer.path(lineOfNodesPath).attr({
+                stroke: '#4572A7',
+                'stroke-width': 1,
+                zIndex: 11
+        }).add();
+}
+
+function redrawOrbits() {
+	if (!orbit || !orbit.initialized) {
+            setTimeout(redrawOrbits, 500);
+            return;
+        } 
+	$('orbitErrors').hide();
+
+	for (var i = 0; i < orbitChartElements.length; i++) {
+	    orbitChartElements[i].destroy();
+	}
+	orbitChartElements.length = 0;
+
+	var elementCount = 0;
+	var centerx = orbitChart.plotLeft + orbitChart.plotWidth/2;
+	var centery = orbitChart.plotTop + orbitChart.plotHeight/2;
+	var scalex = (orbitChart.plotWidth/(2*orbit.axisWidth));
+	var scaley = (orbitChart.plotHeight/(2*orbit.axisWidth));
+	orbitChartElements[elementCount++] = orbitChart.renderer.image("images/sun.png", centerx - 7.5, centery - 7.5, 15, 15).attr({ zIndex: 3 }).add();
+	orbitChartElements[elementCount++] = orbitChart.renderer.text("Sun", centerx - 9, centery - 7).attr({zIndex: 7}).add();
+	var objectorbit = [];
+	count = 4;
+    var earthPathAttrib =   {stroke: 'blue',   'stroke-width': 1,                                                   zIndex: 1 };
+    var objectPathAttrib = [{stroke: 'gray',   'stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 2 }, 
+                            {stroke: 'red',    'stroke-width': 1,                                                   zIndex: 3 }, 
+                            {stroke: 'purple', 'stroke-width': 1,                                                   zIndex: 4 }, 
+                            {stroke: 'red',    'stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 5 }, 
+                            {stroke: 'purple', 'stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 6 }, 
+                            {stroke: 'green',  'stroke-width': 1,                                                   zIndex: 7 }, 
+                            {stroke: 'green',  'stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 8 }             
+    ];
+    var beginPos = {},
+        endPos = {},
+        idx1 = 0,
+        idx2 = 0, 
+        orbitkey = [],
+        i;
+    var tbiLength = bplane.getTBI() ? bplane.getTBI().length : 0;
+    var keyoriginx = orbitChart.plotLeft + 10;
+    var keyoriginy = orbitChart.plotTop + orbitChart.plotHeight - 10 - tbiLength*15;
+    var orbitLabel = "";
+    var tBox = {};
+    orbitkey = ['M', keyoriginx , keyoriginy, 'L', keyoriginx + 20, keyoriginy];
+    orbitChartElements[elementCount++] = orbitChart.renderer.path(orbitkey).attr(earthPathAttrib).add();
+	orbitChartElements[elementCount++] = orbitChart.renderer.text("Earth", keyoriginx + 25,keyoriginy+5).attr({ zIndex: 10 }).add();
+    if (bplane.valid) {
+        if (bplane.getTBI()) {
+            for (var bpIdx = 1; bpIdx <= bplane.getTBI().length; bpIdx++) {
+                if( bpIdx < bplane.getTBI().length) {
+                    idx1 = Math.floor((bplane.getTBI()[bpIdx - 1] - 1) / 10);
+                    idx2 = Math.floor((bplane.getTBI()[bpIdx    ] - 1) / 10);
+                    beginPos = getObjectPosAt(bplane.getTBI()[bpIdx -1]);
+                    endPos = getObjectPosAt(bplane.getTBI()[bpIdx]);
+                } else {
+                    idx1 = Math.floor((bplane.getTBI()[bpIdx - 1] - 1) / 10);
+                    idx2 = orbit.getObjectOrbit().length - 1;
+                    beginPos = getObjectPosAt(bplane.getTBI()[bpIdx -1]);
+                    endPos = getObjectPosAt(idx2 * 10);            
+                }
+
+                objectorbit = ['M', centerx + scalex*beginPos.x, centery - scaley*beginPos.y, 'L'];
+                count = 4;
+                for (i = idx1; i < idx2; i++) {
+                    objectorbit[count++] = centerx + scalex*orbit.getObjectOrbit()[i][0];
+                    objectorbit[count++] = centery - scaley*orbit.getObjectOrbit()[i][1];
+                }
+                if (bpIdx < bplane.getTBI().length) {
+                    objectorbit[count++] = centerx + scalex*endPos.x;
+                    objectorbit[count++] = centery - scaley*endPos.y;
+                }
+                orbitChartElements[elementCount++] = orbitChart.renderer.path(objectorbit).attr(objectPathAttrib[bpIdx % objectPathAttrib.length]).add();
+                orbitkey = ['M', keyoriginx , keyoriginy + bpIdx*15, 'L', keyoriginx + 20, keyoriginy + bpIdx*15];
+                orbitChartElements[elementCount++] = orbitChart.renderer.path(orbitkey).attr(objectPathAttrib[bpIdx % objectPathAttrib.length]).add();
+                orbitLabel = (bpIdx === 1) ? 
+                    ((bplane.getTBI().length === 1 ) ? "Object" : "Impact orbit (post-keyhole)" )
+                        : "Before BP" + (bpIdx - 1) + "(pre-keyhole)";
+                orbitChartElements[elementCount] = orbitChart.renderer.text(orbitLabel, keyoriginx + 25,keyoriginy + bpIdx*15 + 5).attr({ zIndex: 10 }).add();
+                tBox = orbitChartElements[elementCount].getBBox();
+                if (tBox.width + tBox.x > orbitChart.plotLeft + orbitChart.plotWidth - 120) {
+                    orbitChartElements[elementCount].destroy();   //delete it so we can recreate a version with shorter text 
+                    orbitLabel = (bpIdx === 1) ? 
+                        ((bplane.getTBI().length === 1 ) ? "Object" : "Impact orbit" )
+                            : "Before BP" + (bpIdx - 1);
+                    orbitChartElements[elementCount] = orbitChart.renderer.text(orbitLabel, keyoriginx + 25,keyoriginy + bpIdx*15 + 5).attr({ zIndex: 10 }).add();
+                }
+                elementCount++;
+            }
+        }
+    }
+    var earthorbit = ['M', centerx + scalex*orbit.getEarthOrbit()[0][0], centery - scaley*orbit.getEarthOrbit()[0][1], 'L'];
+	count = 4;
+	for (i = 1; i < orbit.getEarthOrbit().length; i++) {
+		earthorbit[count++] = centerx + scalex*orbit.getEarthOrbit()[i][0];
+		earthorbit[count++] = centery - scaley*orbit.getEarthOrbit()[i][1];
+	}
+	orbitChartElements[elementCount++] = orbitChart.renderer.path(earthorbit).attr(earthPathAttrib).add();
+	orbitChartElements[elementCount++] = orbitChart.renderer.circle(centerx + scalex*orbit.getObjectOrbit()[0][0], centery - scaley*orbit.getObjectOrbit()[0][1], 3).attr({
+		stroke: 'black', fill: 'black', zIndex: 6
+	}).add();
+	orbitChartElements[elementCount++] = orbitChart.renderer.text("Impact", centerx + scalex*orbit.getObjectOrbit()[0][0] - 20, centery - scaley*orbit.getObjectOrbit()[0][1] - 15).attr({
+		zIndex: 10
+	}).add();
+
+    updateOrbitsTd(localTd);
+
+    processingOrbits = false;
+}
+
+function updateOrbitsTd(td) {
+    if (!areOrbitsReady())
+        return;
+	for (var i = 0; i < orbitChartElementsToDestroy.length; ++i) {
+        if (orbitChartElementsToDestroy[i]) {
+    	    orbitChartElementsToDestroy[i].destroy();
+        }
+	}
+    localTd = td;
+	orbitChartElementsToDestroy.length = 0;
+	var elementToDestroyCount = 0;
+    elementToDestroyCount = createOrbitMovingBodies(elementToDestroyCount,td);
+    elementToDestroyCount = createOrbitInterceptElements(elementToDestroyCount,td);
+}
+
+function createOrbitMovingBodies(elementToDestroyCount,td) {
+    var objAngAttr   = { stroke: '#FFC0CB', 'stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 5 };
+    var objCirAttr   = { stroke: 'red', fill: 'red', zIndex: 5 };
+    var earthAngAttr = { stroke: 'green', 'stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 4 };
+    var earthCirAttr = { stroke: 'blue', fill: 'blue', zIndex: 4 };
+	var centerx = orbitChart.plotLeft + orbitChart.plotWidth/2;
+	var centery = orbitChart.plotTop + orbitChart.plotHeight/2;
+	var scalex = (orbitChart.plotWidth/(2*orbit.axisWidth));
+	var scaley = (orbitChart.plotHeight/(2*orbit.axisWidth));
+	var idx = Math.floor((td - 1) / 10);
+    var pos = getObjectPosAt(td);
+	var objectang = Math.atan(pos.y/pos.x);
+	if (pos.x < 0)
+		objectang += Math.PI;
+	var objectpath = ['M', centerx + 5 * Math.cos(objectang), centery - 5 * Math.sin(objectang), 'L', centerx + scalex*pos.x, centery - scaley*pos.y];
+	orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.path(objectpath).attr(objAngAttr).add();
+    
+    var objXPos = centerx + scalex*pos.x;
+    var objYPos = centery - scaley*pos.y;
+	orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.circle(objXPos, objYPos , 3).attr(objCirAttr).add();
+	orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text("Object", objXPos - 17 + 27*Math.cos(objectang), objYPos + 5 - 15*Math.sin(objectang)).attr({zIndex: 9}).add();
+
+  	idx = Math.round((td - 1) % 365.242199);
+	var earthang = Math.atan(orbit.getEarthOrbit()[idx][1]/orbit.getEarthOrbit()[idx][0]);
+	if (orbit.getEarthOrbit()[idx][0] < 0)
+		earthang += Math.PI;
+	var earthpath = ['M', centerx + 5 * Math.cos(earthang), centery - 5 * Math.sin(earthang), 'L', centerx + scalex*orbit.getEarthOrbit()[idx][0], centery - scaley*orbit.getEarthOrbit()[idx][1]];
+	orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.path(earthpath).attr(earthAngAttr).add();
+	orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.circle(centerx + scalex*orbit.getEarthOrbit()[idx][0], centery - scaley*orbit.getEarthOrbit()[idx][1], 3).attr(earthCirAttr).add();
+	orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text("Earth", centerx + scalex*orbit.getEarthOrbit()[idx][0] - 14 + 19*Math.cos(earthang), centery - scaley*orbit.getEarthOrbit()[idx][1] + 5 - 10*Math.sin(earthang)).attr({zIndex: 8 }).add();
+    
+    return elementToDestroyCount;
+}
+
+function createOrbitInterceptElements(elementToDestroyCount,td) {
+    if (!isDeltaVMode() && getTofDays() >= 0) {
+        var centerx = orbitChart.plotLeft + orbitChart.plotWidth/2;
+        var centery = orbitChart.plotTop + orbitChart.plotHeight/2;
+        var scalex = (orbitChart.plotWidth/(2*orbit.axisWidth));
+        var scaley = (orbitChart.plotHeight/(2*orbit.axisWidth));
+        var i;
+        var idx = Math.round((getTofDays() + td - 1) % year);
+        if (idx < orbit.getEarthOrbit().length) {
+            var earthang = Math.atan(orbit.getEarthOrbit()[idx][1]/orbit.getEarthOrbit()[idx][0]);
+            if (orbit.getEarthOrbit()[idx][0] < 0)
+                earthang += Math.PI;
+            orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.circle(centerx + scalex*orbit.getEarthOrbit()[idx][0], centery - scaley*orbit.getEarthOrbit()[idx][1], 3).attr({
+                    stroke: 'green', fill: 'green', zIndex: 4
+                }).add();
+            orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text("Launch", centerx + scalex*orbit.getEarthOrbit()[idx][0] - 20 - 28*Math.cos(earthang), centery - scaley*orbit.getEarthOrbit()[idx][1] + 5 + 11*Math.sin(earthang)).attr({
+                    zIndex: 8
+                }).add();
+            if (bplane && !isNaN(bplane.transferSMA) && solutionPossible) {
+                var tOrbit = getTransferOrbit(bplane.transferSMA,bplane.transferEcc,bplane.transferInc,
+                                              bplane.transferRAAN,bplane.transferArgPer,bplane.transferTA,
+                                              getTofDays(), 3);
+                var transferPath = ['M', centerx + scalex * tOrbit[0][0]/au, centery - scaley * tOrbit[0][1]/au, 'L'];
+                for (i = 1; i < tOrbit.length; i++) {
+                    transferPath.push(centerx + scalex * tOrbit[i][0]/au);
+                    transferPath.push(centery - scaley * tOrbit[i][1]/au);
+                }
+                var interceptPathAttr = { stroke: '#00C0C0','stroke-width': 1, 'stroke-dasharray': '5,5,5', 'dashstyle': 'dash', zIndex: 4 };
+                orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.path(transferPath).attr(interceptPathAttr).add();
+                var keyoriginx = orbitChart.plotLeft + orbitChart.plotWidth - 100;
+                var keyoriginy = orbitChart.plotTop + orbitChart.plotHeight - 40;
+                var orbitkey = ['M', keyoriginx , keyoriginy - 3, 'L', keyoriginx + 20, keyoriginy - 3];
+                orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.path(orbitkey).attr(interceptPathAttr).add();
+                orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text("Interceptor", keyoriginx + 23,keyoriginy).attr({ zIndex: 10 }).add();
+                if (isNaN(bplane.transferPeriod) || bplane.transferPeriod <= 0 || bplane.transferSMA <= 0 || !solutionPossible) {
+                    orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text("NO INTERCEPT", keyoriginx,keyoriginy + 15).attr({ stroke: '#FF4040', zIndex: 10 }).add();                    
+                } else {
+                    orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text((getTofDays()*3600*24/bplane.transferPeriod).toFixed(2) + " Orbits", keyoriginx,keyoriginy + 15).attr({ zIndex: 10 }).add();
+                    orbitChartElementsToDestroy[elementToDestroyCount++] = orbitChart.renderer.text(bplane.transferInc.toFixed(1) + "\u00B0 Inclination", keyoriginx,keyoriginy + 30).attr({ zIndex: 10 }).add();
+                }
+            }
+        }
+    }   
+    return elementToDestroyCount;
+}
+
+function getObjectPeriodAt(day) {
+    var objOrb = orbit.getObjectOrbit();
+    if (day < 0 || day > objOrb.length * 10)
+        return 0;
+    var i = Math.min(Math.round(day/10),objOrb.length - 1);
+    var rx = objOrb[i][0] * au;
+    var ry = objOrb[i][1] * au;
+    var rz = objOrb[i][2] * au;
+    var vx = objOrb[i][3];
+    var vy = objOrb[i][4];
+    var vz = objOrb[i][5];
+    var mu_sun = 132712440018;
+    var dToS = 3600 * 24;
+	var r = Math.sqrt(Math.pow(rx, 2) + Math.pow(ry, 2) + Math.pow(rz, 2));
+	var v = Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2) + Math.pow(vz, 2));
+    var sma = r/(2-r*Math.pow(v, 2)/mu_sun);
+    var period = 2*Math.PI*Math.sqrt(Math.pow(sma, 3)/mu_sun); // in seconds 
+    
+    return (period / dToS); // in days
+}
+
+function areOrbitsReady()
+{
+    if (!orbit || !orbit.getObjectOrbit() || !orbit.getObjectOrbit()[0] ||
+                  !orbit.getEarthOrbit() || !orbit.getEarthOrbit()[0])
+        return false;
+    return true;
+}
+
+// radians
+// returns signed difference change from ang1 to ang2
+function angleDelta (ang1, ang2) {
+/*    var ang = (ang2 - ang1) % (2 * Math.PI);
+    if(ang < -Math.PI) ang += 2 * Math.PI;
+    if(ang >  Math.PI) ang -= 2 * Math.PI;
+    */
+    var a1 = ang1 % (2 * Math.PI);
+    if (a1<0) a1 += 2 * Math.PI;
+    var a2 = ang2 % (2 * Math.PI);
+    if (a2<0) a2 += 2 * Math.PI;
+    var ang = a2 - a1;
+    if (ang < Math.PI && ang > -Math.PI)
+        return ang;
+    else if (a2 > Math.PI)
+        return ang - 2 * Math.PI;
+    else if (a1 > Math.PI)
+        return ang + 2 * Math.PI;
+    return Math.PI;
+}
+
+function angleFromDay(day,isEarth) {
+    var  pos = isEarth ? getEarthPosAt(day) : getObjectPosAt(day);  // get the position from the day
+    return Math.atan2(pos.y, pos.x);                                // get the angle from the position
+}
+
+// angle = onscreen angle from center for new desired position (in radians)
+function getDayfromNewAngle(startDay, angle, isEarth) {  
+    if (!areOrbitsReady())
+        return -1; // error
+    if (isEarth) {
+        var period = year;
+    } else {
+        var period = getObjectPeriodAt(startDay);  
+    }
+    var retrograde = isEarth ? false : orbit.isRetrograde();
+    var orgAngle = angleFromDay(startDay,isEarth);
+    var angleD = angleDelta(orgAngle, angle);
+    // test if we are aproaching the end of the orbit array data
+    if (startDay < period / 2 &&                                                // within half an orbit of day 0
+        (retrograde && angleD > 0 || !retrograde && angleD < 0) ) {     // new angle is in the direction of day 0
+        var day0Angle = angleFromDay(0,isEarth);
+        var testAngDelta = angleDelta(day0Angle,angle);
+        if (!retrograde && testAngDelta > 0 || retrograde && testAngDelta < 0)
+            return 1; // day is 0 since we are beyond the beginning of the data
+    } else if (startDay > tdMaximum - period / 2 &&                             // within half an orbit of the last day (tdMaximum)
+               (retrograde && angleD < 0 || !retrograde && angleD > 0) ) { // new angle is in the direction of day tdMaximum (last day of data)
+        var dayMaxAngle = angleFromDay(tdMaximum,isEarth);
+        var testAngDelta = angleDelta(dayMaxAngle,angle);
+        if (!retrograde && testAngDelta < 0 || retrograde && testAngDelta > 0)
+            return tdMaximum; // day is tdMaximum since we are beyond the beginning of the data
+    }
+    
+    // now we must converge on the day using the goal angle
+    // we have the initial angle and the goal angle
+    // compute upper bound angle and day
+    var inc = period / 50 * (retrograde ? 1 : -1);
+    var upperAng = angleFromDay(startDay,isEarth);
+    var upperDay = startDay;
+    var count = 0;
+    while (angleDelta(angle,upperAng) < 0 ) {
+        upperDay += inc;     // move along until we are past the angle
+        upperDay = Math.min(Math.max(upperDay, 1), tdMaximum);
+        upperAng = angleFromDay(upperDay,isEarth);
+        if (Math.abs(angleDelta(angle,upperAng)> Math.PI/10 ) || count > 1)
+            angleDelta(angle,upperAng);
+        count++;
+        if (count > 25)
+            return -1; // error
+    }
+    // compute lower bound angle and day
+    var lowerAng = angleFromDay(startDay,isEarth);
+    var lowerDay = startDay;
+    count = 0;
+    while (angleDelta(angle,lowerAng) > 0 ) {
+        lowerDay -= inc; // move along until we are past the angle
+        lowerDay = Math.min(Math.max(lowerDay, 1), tdMaximum);
+        lowerAng = angleFromDay(lowerDay,isEarth);
+        if (Math.abs(angleDelta(angle,lowerAng)> Math.PI/100 ) || count > 1) {
+            angleDelta(angle,lowerAng);
+        }
+        count++;
+        if (count > 25)
+            return -1; // error
+    }
+    lowerAng = angle + angleDelta(angle,lowerAng);
+    upperAng = angle + angleDelta(angle,upperAng);  // get the angles in the same neighborhood
+    //  at this point we assume the goal angle is between the upper and lower bounds 
+    count = 0;
+    var t = 0;
+    var guessDay = 0;
+    var guessAng = 0;
+    while (count < 100) {
+        t = (angle - lowerAng) / (upperAng - lowerAng);         // compute t (affine position) based on position of goal angle within the upper and lower bound
+        guessDay = (1-t) * (lowerDay) + t * (upperDay);         // get guess day by affine transform of t into the angle extreems
+        guessAng = angleFromDay(guessDay,isEarth);                   // compute angle from the guess day
+        if (Math.abs(guessAng - angle) < .01)                  // if the angle is within tolerance of the goal angle return the corresponing day
+            return Math.min(Math.max(guessDay, 1), tdMaximum);
+        else if (angle > lowerAng && angle < guessAng) {        // else if goal angle is between lower angle and guess
+            upperAng = guessAng;                                // set the upper bound to our previous guess
+        } else
+            lowerAng = guessAng;                                // set the lower bound to our previous guess
+        count++;
+    }
+    return Math.min(Math.max(guessDay, 1), tdMaximum);
+}
+
+function getEarthPosAt(day) {
+    if (!areOrbitsReady())
+        return { x: 0, y: 0 };
+    try {
+        var idx = Math.round((day - 1) % year);
+        return {
+            x : orbit.getEarthOrbit()[idx][0],
+            y : orbit.getEarthOrbit()[idx][1]
+        }; 
+    } catch (e) {
+        showError(e);
+    }
+}
+
+function getObjectPosAt(day) {
+    try {
+        var idx = Math.min(Math.max(Math.floor((day-1) / 10),0),orbit.getObjectOrbit().length - 1);
+        var tBetweenIdxValues = (day-1) / 10 - idx;
+        if (!areOrbitsReady())
+            return { x: 0, y: 0 };
+        var objXPos_idx0 = orbit.getObjectOrbit()[idx][0];
+        var objYPos_idx0 = orbit.getObjectOrbit()[idx][1];
+        var objXPos_idx1 = orbit.getObjectOrbit()[(idx+1)%orbit.getObjectOrbit().length][0];
+        var objYPos_idx1 = orbit.getObjectOrbit()[(idx+1)%orbit.getObjectOrbit().length][1];
+        var objXPos = objXPos_idx0 + tBetweenIdxValues * (objXPos_idx1 - objXPos_idx0);     // we have to interpolate since we only have every 10th value available
+        var objYPos = objYPos_idx0 + tBetweenIdxValues * (objYPos_idx1 - objYPos_idx0);
+
+        return {
+            x : objXPos,
+            y : objYPos
+        };
+    } catch (e) {
+        showError(e);
+    }
+}
+
+// orbit position based on mean anomaly
+// assumes angle arguments are in degrees (except ma) and assumes an ecc < 1
+function orbitPosFromParamsMA(sma,ecc,inc,raan,argper,ma) {
+    var N = raan * Math.PI / 180;   // right assension of ascending node
+    var i = inc * Math.PI / 180;    // inclination
+    var w = argper * Math.PI / 180; // argument of periapsis
+    var E = ma2ea(ecc,ma);
+    var xv = sma * ( Math.cos(E) - ecc );
+    var yv = sma * ( Math.sqrt(1.0 - Math.pow(ecc,2)) * Math.sin(E) );
+
+    var v = Math.atan2(yv, xv);                           // true anomaly
+    var r = Math.sqrt( Math.pow(xv,2) + Math.pow(yv,2));  // radius
+
+    var xh = r * ( Math.cos(N) * Math.cos(v+w) - Math.sin(N) * Math.sin(v+w) * Math.cos(i) );
+    var yh = r * ( Math.sin(N) * Math.cos(v+w) + Math.cos(N) * Math.sin(v+w) * Math.cos(i) );
+    var zh = r * ( Math.sin(v+w) * Math.sin(i) );
+    
+    return { x : xh, y : yh, z : zh };
+}
+
+// Expects:
+// sma in km
+// inc in deg
+// raan in deg
+// argper in deg
+// ta in deg
+function getTransferOrbit(sma,ecc,inc,raan,argper,ta,days, dayIncrement) {
+    var orbitList = [];
+    var Sqrt_GMs = Math.sqrt(G*Ms);                     // used in mean motion calculation: units are 1/s
+    var n = Sqrt_GMs * Math.sqrt(1/Math.pow(sma*1000,3)); // mean motion (convert sma from km to m)
+    var M0 = ta2ma(ta * Math.PI / 180,ecc);             // convert true anomaly to mean anomaly
+    var M = 0;
+    var secOffset;                                      // how many seconds from M0 during loop below
+    var pos = {};
+
+    if(dayIncrement <= 0)
+        return;                                         // prevent an infinite loop
+    for (var i=0; i < days; i += dayIncrement) {
+        secOffset = 3600 * 24 * i;
+        M = M0 + n * secOffset;                         //  the new mean anomaly offset by the time difference
+        pos = orbitPosFromParamsMA(sma,ecc,inc,raan,argper,M);
+        orbitList.push([pos.x,pos.y,pos.z]);
+    }
+    // do the last day
+    secOffset = 3600 * 24 * days;
+    M = M0 + n * secOffset;                             //  the new mean anomaly offset by the time difference
+    pos = orbitPosFromParamsMA(sma,ecc,inc,raan,argper,M);
+    orbitList.push([pos.x,pos.y,pos.z]);
+    
+    return orbitList;
+}
+
+function ma2ea(ecc, ma) {
+    var E = ma + ecc * Math.sin(ma) * ( 1.0 + ecc * Math.cos(ma) );
+    var E0 = E;
+    var E1 = 0;
+    // converge on a solution for eccentric anomaly (wont work for ecc near or above 1)
+    for (var j = 0; j < 100; j++) {
+        E1 = E0 - ( E0 - ecc * Math.sin(E0) - ma ) / ( 1 - ecc * Math.cos(E0) );
+        if (Math.abs(E1-E0) < 0.001)
+            break;
+        E0 = E1;
+    }
+    return E1;
+}
+
+// used for verifying orbit calculations in debugging
+function TrueAnom(ec,E,dp) { 
+    var S = Math.sin(E); 
+    var C = Math.cos(E); 
+    var fak = Math.sqrt(1.0-Math.pow(ec,2)); 
+    var phi = Math.atan2(fak*S,C-ec); 
+
+    return Math.round(phi*Math.pow(10,dp))/Math.pow(10,dp);
+} 
+
+function ta2ma(ta,ecc) {
+    var ea = ta2ea(ta,ecc);
+    return ea2ma(ea,ecc);
+}
+
+function ta2ea(ta,ecc) {
+   var E = Math.atan2((Math.sqrt(1 - Math.pow(ecc,2)) * Math.sin(ta)), (ecc + Math.cos(ta)) );  
+   return E;
+}
+
+function ea2ma(ea,ecc) {
+    return ea - ecc * Math.sin(ea);
+}

@@ -1,0 +1,78 @@
+function _getElement(theObject, name) {
+	var	element;
+
+	try {
+		element = theObject.childNodes[1].getElementsByTagName(name);
+	}
+	catch(e) {
+		try {
+			element = theObject.firstChild.getElementsByTagName(name);
+		}
+		catch(e1) {
+			element = null;
+		}
+	}
+	return(element);
+}
+
+function _getAttribute(theObject, name, attribute) {
+	var	element;
+	var	value;
+
+	try {
+		element = _getElement(theObject, name);
+		try {
+			value = element[0].getElementsByTagName(attribute)[0].firstChild.nodeValue;
+		}
+		catch(e1) {
+			try {
+				value = element[0].firstChild.getElementsByTagName(attribute)[0].text;
+			}
+			catch(e2) {
+				value = "";
+			}
+		}
+	}
+	catch(e) {
+		value = "";
+	}
+	return(value);
+}
+
+function _getSubElement(theObject, name) {
+	var	element;
+
+	try {
+		element = theObject.childNodes[1].getElementsByTagName(name);
+	}
+	catch(e) {
+		try {
+			element = theObject.firstChild.getElementsByTagName(name);
+		}
+		catch(e1) {
+		}
+	}
+
+	return(element);
+}
+
+function _getSubAttribute(data, attribute) {
+	var	value;
+
+	try {
+		value = data.getElementsByTagName(attribute)[0].firstChild.nodeValue;
+	}
+	catch(e) {
+		try {
+			value = data.firstChild.getElementsByTagName(attribute)[0].text;
+		}
+		catch(e1) {
+			value = null;
+		}
+	}
+	return(value);
+}
+
+function $X(xmlnode) {
+	return(xmlnode.firstChild.nodeValue);
+}

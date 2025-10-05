@@ -1,0 +1,318 @@
+/*
+ * Class: Distance
+ * Description:
+ * Author: Eyal Amir
+ * Version 1.0
+ */
+var Distance = Class.create({
+	initialize: function() {
+        this.valid              = false;
+		this.distances			= [new Array(), new Array()];
+		this.distanceRequest	= null;
+		this.partials			= [new Array(), new Array(), new Array()];
+		this.partialsRequest	= null;
+		this.afterDataRetrieval	= function(o) {};
+	},
+
+    initializePartialsFromXML: function(xml) {
+        var result = xml.getElementsByTagName("result")[0];
+        var partials = result.getElementsByTagName("partials")[0];
+        var times = partials.getElementsByTagName("time");
+        var dXidVa = partials.getElementsByTagName("dXi_dVa");
+        var dXidVc = partials.getElementsByTagName("dXi_dVc");
+        var dXidVn = partials.getElementsByTagName("dXi_dVn");
+        var dZetadVa = partials.getElementsByTagName("dZeta_dVa");
+        var dZetadVc = partials.getElementsByTagName("dZeta_dVc");
+        var dZetadVn = partials.getElementsByTagName("dZeta_dVn");
+        var partialsarr = [new Array(), new Array(), new Array()];
+        var count = 0;
+        var time = 0,xa = 0, xc = 0, xn = 0, za = 0, zc = 0, zn = 0;
+        for (var i = 0; i < times.length; i++) {
+            time = parseFloat($X(times[i]).strip());
+            xa = parseFloat($X(dXidVa[i]).strip());
+            xc = parseFloat($X(dXidVc[i]).strip());
+            xn = parseFloat($X(dXidVn[i]).strip());
+            za = parseFloat($X(dZetadVa[i]).strip());
+            zc = parseFloat($X(dZetadVc[i]).strip());
+            zn = parseFloat($X(dZetadVn[i]).strip());
+            if (time <= maxNumYears) {
+                
+                partialsarr[0][count] = [time, Math.sqrt(xa*xa + za*za)/1000000];  // compute the full effect of a push of dVA by combining 
+                                                                                // the dXi/dVA and dZeta/dVA vectors using the distance formula
+                partialsarr[1][count] = [time, Math.sqrt(xc*xc + zc*zc)/1000000];  // similar for dVC
+                partialsarr[2][count] = [time, Math.sqrt(xn*xn + zn*zn)/1000000];  // similar for dVN
+                count++;
+            }
+        }
+        this.setPartials(partialsarr);
+	},
+
+	initializeFromXML: function(xml) {
+        var result = xml.getElementsByTagName("result")[0];
+        var earth_dist = result.getElementsByTagName("earth_distance")[0];
+        var times = earth_dist.getElementsByTagName("time");
+        var dists = earth_dist.getElementsByTagName("dist");
+        var distarr = [new Array(), new Array()];
+        var count = 0;
+        for (var i = 0; i < times.length; i++) {
+            var time = parseFloat($X(times[i]).strip());
+            var dist = parseFloat($X(dists[i]).strip());
+            if (time <= maxNumYears) 
+                distarr[0][count++] = [time, dist];
+        }
+        var sun_dist = result.getElementsByTagName("sun_distance")[0];
+        var times = sun_dist.getElementsByTagName("time");
+        var dists = sun_dist.getElementsByTagName("dist");
+        var count = 0;
+        for (i = 0; i < times.length; i++) {
+            var time = parseFloat($X(times[i]).strip());
+            var dist = parseFloat($X(dists[i]).strip());
+            if (time <= maxNumYears)
+                distarr[1][count++] = [time, dist];
+        }
+        this.setDistances(distarr);
+        distChartXMin = Math.floor(Math.min(distarr[0][distarr[0].length - 1][0],maxNumYears) * year);  // choose the minumum of the last loaded day and the maxNumYears allowed
+        tdMaximum = distChartXMin;
+        distChartXMinLoaded = distChartXMin;
+        resetCharts();
+	},
+
+	processData: function(req) {
+		var reqXML = req.responseXML;
+		if (!reqXML) {
+			$('distanceErrors').innerHTML = "<span style=\'font-size: large;\'>Query Returned No Results</span>";
+			$('distanceErrors').show();
+			return;
+		}
+		this.initializeFromXML(reqXML);
+        var objectEl = reqXML.getElementsByTagName('object');
+//        var object = objectEl[0].textContent.strip();
+        var object = neoGetText(objectEl[0]);
+        this.getPartialsData(object);
+//		this.afterDataRetrieval(this);
+	},
+            
+    processPartialsData: function(req) {
+		var reqXML = req.responseXML;
+		if (!reqXML) {
+			$('distanceErrors').innerHTML = "<span style=\'font-size: large;\'>Query Returned No Results</span>";
+			$('distanceErrors').show();
+			return;
+		}
+		this.initializePartialsFromXML(reqXML);
+		this.afterDataRetrieval(this);
+        this.valid = true;
+	},
+
+	getData: function(object) {
+		var url = cgi_loc + "/getDistances.py?format=xml&object=" + object;
+		this.distanceRequest = new Ajax.Request(
+						url,
+						{
+							method: 'get',
+							onComplete: this.processData.bind(this),
+							onException: function(req, exc) {
+                                showError(exc,'dist.js:getData');
+//							    alert('dist.js: ' + exc);
+							}
+						}
+		);
+	},
+
+	getPartialsData: function(object) {
+		var url = cgi_loc + "/getPartials.py?format=xml&object=" + object ;
+		this.partialsRequest = new Ajax.Request(
+						url,
+						{
+							method: 'get',
+							onComplete: this.processPartialsData.bind(this),
+							onException: function(req, exc) {
+                                showError(exc,'dist.js:getPartials');
+//							    alert('dist.js: ' + exc);
+							}
+						}
+		);
+	},
+
+
+
+	setDistances: function(dists) {
+		this.distances = dists;
+	},
+
+	getDistances: function() {
+		return(this.distances);
+	},
+    
+    setPartials: function(partials) {
+        this.partials = partials;
+    },
+            
+    getPartials: function() {
+        return (this.partials);
+    }
+});
+
+var processingDist = false;
+function updateDist(object, td) {
+	if (processingDist)
+		return; // prevent from being called multiple times
+	processingDist = true;
+	$('distanceErrors').hide();
+
+    var dist = new Distance();
+    dist.afterDataRetrieval = function(dist) {
+		distChart.series[0].setData(this.getDistances()[0]);
+		distChartMaster.series[0].setData(this.getDistances()[0]);
+		distChart.series[1].setData(this.getDistances()[1]);
+		distChartMaster.series[1].setData(this.getDistances()[1]);
+		distChart.series[2].setData(this.getPartials()[0]);
+		distChartMaster.series[2].setData(this.getPartials()[0]);
+		distChart.series[3].setData(this.getPartials()[1]);
+		distChartMaster.series[3].setData(this.getPartials()[1]);
+		distChart.series[4].setData(this.getPartials()[2]);
+		distChartMaster.series[4].setData(this.getPartials()[2]);
+        resetDistDefaultZoom();
+		moveTdLine(td);
+        if (this.getDistances()[0] && this.getDistances()[0].length > 0 && this.getDistances()[0][this.getDistances()[0].length-1][0] * year < 0.7* tdMaximum ) 
+            distChart.zoomOut();
+		processingDist = false;
+        distDataValid = true;
+    };
+
+	dist.getData(object);
+}
+
+function resetDistDefaultZoom() {
+    var selectionData = {xAxis: [], yAxis: []};
+    selectionData['xAxis'].push({
+            axis: distChart.xAxis[0],
+            min: distChartXMax / 365,
+            max: distChartXMin / 365
+    });
+    distChart.zoom(selectionData);    
+}
+
+function updateBPMarkers(td)
+{   
+    var bpLabelIdx = 0,
+        i,
+        pctg,
+        padding,
+        xval,
+        tbi = bplane.getTBI(),
+        color = "";
+    if (!tbi)
+        return;  // bplane data not loaded yet
+    if (distChartBPLabels) {
+        for (i = 0; i < distChartBPLabels.length; i++) {
+            distChartBPLabels[i].destroy();
+            distChartBPLabels[i] = null;
+        }
+        distChartBPLabels = null;
+    }
+    distChartBPLabels = Array();
+    if (distChartBPPaths) {
+        for (i = 0; i < distChartBPPaths.length; i++) {
+            distChartBPPaths[i].destroy();
+            distChartBPPaths[i] = null;
+        }
+        distChartBPPaths = null;
+    }
+    distChartBPPaths = Array();
+    for (i = 0; i < tbi.length; i++) {
+        pctg = (1-(tbi[i]-distChartXMax)/(distChartXMin - distChartXMax));
+        if (pctg > 1 || pctg < 0) {
+            continue;
+        }
+        color = (td > tbi[i]) ? 'red' : 'lightgray';
+            
+        if (distChartXMin !== tdMaximum || distChartXMax !== 1)
+            padding = 0;
+        else
+            padding = 0.001;
+        xval = distChart.plotLeft + padding*distChart.plotWidth + pctg*(1-2*padding)*distChart.plotWidth;
+        distChartBPLabels[bpLabelIdx] = distChart.renderer.text("BP "+i, xval + 5, distChart.plotTop + distChart.plotHeight*.4 - 3).attr({
+            rotation: -90 
+        }).css({
+//            align: 'left',
+            zIndex: 6,
+        	color: color,
+        	fontSize: '16px'            
+        }).add();
+        if (!distChartBPPaths[bpLabelIdx]) {
+            distChartBPPaths[bpLabelIdx] = distChart.renderer.path(['M', xval, distChart.plotTop + distChart.plotHeight, 'L', xval, distChart.plotTop + distChart.plotHeight*.4]).attr({
+                'stroke-width': 2,
+                'stroke-dasharray': '5,5,5',
+                'dashstyle': 'dash',
+                stroke: color,
+                zIndex: 10}).add();
+        }
+        else
+            distChartBPPaths[i].attr({
+                d: ['M', xval, distChart.plotTop + distChart.plotHeight, 'L', xval, distChart.plotTop + distChart.plotHeight*.4]
+            });  
+        bpLabelIdx++;
+    }
+}
+
+function updateMasterBPMarkers(td)
+{   
+    var bpLabelIdx = 0,
+        i,
+        pctg,
+        padding,
+        xval,
+        tbi = bplane.getTBI(),
+        color = "";
+    if (!tbi)
+        return;  // bplane data not loaded yet
+    if (distChartMasterBPLabels) {
+        for (i = 0; i < distChartMasterBPLabels.length; i++) {
+            distChartMasterBPLabels[i].destroy();
+            distChartMasterBPLabels[i] = null;
+        }
+        distChartMasterBPLabels = null;
+    }
+    distChartMasterBPLabels = Array();
+    if (distChartMasterBPPaths) {
+        for (i = 0; i < distChartMasterBPPaths.length; i++) {
+            distChartMasterBPPaths[i].destroy();
+            distChartMasterBPPaths[i] = null;
+        }
+        distChartMasterBPPaths = null;
+    }
+    distChartMasterBPPaths = Array();
+    for (i = 0; i < tbi.length; i++) {
+        pctg = (1-(tbi[i]-1)/(tdMaximum - 1));
+        if (pctg > 1 || pctg < 0) {
+            continue;
+        }
+        color = (td > tbi[i]) ? 'red' : 'black';
+            
+        padding = 0.001;
+        xval = distChartMaster.plotLeft + padding*distChartMaster.plotWidth + pctg*(1-2*padding)*distChartMaster.plotWidth;
+        distChartMasterBPLabels[bpLabelIdx] = distChartMaster.renderer.text("BP "+i, xval + 5, distChartMaster.plotTop + distChartMaster.plotHeight*.6 - 3).attr({
+            rotation: -90 
+        }).css({
+//            align: 'left',
+            zIndex: 6,
+        	color: color,
+        	fontSize: '12px'            
+        }).add();
+        if (!distChartMasterBPPaths[bpLabelIdx]) {
+            distChartMasterBPPaths[bpLabelIdx] = distChartMaster.renderer.path(['M', xval, distChartMaster.plotTop + distChartMaster.plotHeight, 
+                                                                                'L', xval, distChartMaster.plotTop + distChartMaster.plotHeight*.6]).attr({
+                'stroke-width': 2,
+                'stroke-dasharray': '5,5,5',
+                'dashstyle': 'dash',
+                stroke: color,
+                zIndex: 10}).add();
+        }
+        else
+            distChartMasterBPPaths[i].attr({
+                d: ['M', xval, distChartMaster.plotTop + distChartMaster.plotHeight, 'L', xval, distChartMaster.plotTop + distChartMaster.plotHeight*.6]
+            });  
+        bpLabelIdx++;
+    }
+}

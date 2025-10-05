@@ -1,0 +1,296 @@
+/* 
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+Highcharts.theme = { colors: ['#4572A7'] };// prevent errors in default theme
+var highchartsOptions = Highcharts.getOptions(); 
+distChart = new Highcharts.Chart({
+credits: {
+   enabled: false
+},
+chart: {
+    renderTo: 'dist-chart-container',
+    defaultSeriesType: 'line',
+    zoomType: 'x',
+    plotBorderWidth: 1,
+    reflow: false,
+    spacingTop: 25,
+    marginLeft: 60,
+    resetZoomButton: {
+        position: {
+            x: -10,
+            y: 10
+        },
+        relativeTo: 'chart'
+    }, 
+    events: {
+     selection: function(event) {
+        distChartMaster.xAxis[0].removePlotBand('mask-before');
+        distChartMaster.xAxis[0].removePlotBand('mask-after');
+        if (event.xAxis) {
+            distChart.xAxis[0].update({ startOnTick: false } );
+
+            distChartXMin = event.xAxis[0].max*365;
+            distChartXMax = event.xAxis[0].min*365;
+            moveTdLine();
+            moveTofLine(0);
+            distChartMaster.xAxis[0].addPlotBand({
+                  id: 'mask-before',
+                  from: event.xAxis[0].max,
+                  to: tdMaximum/year,
+                  color: Highcharts.theme.maskColor || 'rgba(0, 0, 0, 0.2)'
+               });
+            distChartMaster.xAxis[0].addPlotBand({
+               id: 'mask-after',
+               from: 1/year,
+               to: event.xAxis[0].min,
+               color: Highcharts.theme.maskColor || 'rgba(0, 0, 0, 0.2)'
+            });
+        }
+        else {
+            distChart.xAxis[0].update({ startOnTick: true } );
+            distChartXMin = tdMaximum;
+            distChartXMax = 1;
+            moveTdLine();
+            moveTofLine(0);
+        }
+     },
+         redraw: function(event) {
+            moveTdLine();
+            moveTofLine(0);
+            distChartRendered = true;
+         }
+  }
+},
+tooltip: {
+  formatter: function() {
+     return "Time = " + this.x.toFixed(3) + ", Value = " + this.y.toFixed(3);
+  }
+},
+title: {
+    y: 5,
+    text: ''
+},
+legend: {
+    enabled: true,
+    verticalAlign: 'top',
+    y: -25,
+    borderWidth: 2
+},
+plotOptions: {
+  series: {
+         events: {
+            legendItemClick: function (event) {
+                if (this.visible)
+                    event.preventDefault();
+            },
+            show: function(event) {
+                var eti = event.target.index;
+                for (var i = 0; i <= 4; i++) {
+                    if      (eti ===0) { distChart.yAxis[0].setTitle({ text: 'Distance from Earth [AU]' }); }
+                    else if (eti ===1) { distChart.yAxis[0].setTitle({ text: 'Distance from Sun [AU]' }); }
+                    else if (eti ===2) { distChart.yAxis[0].setTitle({ text: '\u0394VA Sensitivity [km/(mm/s)]' }); }
+                    else if (eti ===3) { distChart.yAxis[0].setTitle({ text: '\u0394VC Sensitivity [km/(mm/s)]' }); }
+                    else if (eti ===4) { distChart.yAxis[0].setTitle({ text: '\u0394VN Sensitivity [km/(mm/s)]' }); }
+                    if (i !== eti) {
+                        distChart.series[i].hide();
+                        distChartMaster.series[i].hide();                                    
+                    }
+                }
+                distChartMaster.series[eti].show();
+            },
+            hide: function(event) {
+            }
+         },
+     cursor: 'pointer',
+     point: {
+        events: {
+     click: function() {
+        setTdValueWithUpdate(this.x*year);
+     }
+        }
+     },
+     marker: {
+        enabled: false,
+        states: {
+     hover: {
+        enabled: true
+     }
+        }
+     }
+  }
+},
+xAxis: {
+  title: {
+     text: null
+  },
+//      minPadding: 0.01,
+//      maxPadding: 0.01,
+      minPadding: 0.0,
+      maxPadding: 0.0,
+      showLastLabel: true,
+      startOnTick: true,
+      endOnTick: false,
+      reversed: true
+},
+yAxis: {
+  useHTML : true,
+  title: {
+     text: 'Distance from Earth [AU]'
+  },
+  minPadding: 0,
+  maxPadding: 0
+},
+series: [{
+    name: 'Dist. from Earth'
+}, {
+    name: 'Dist. from Sun',
+    visible: false
+}, {
+    name: '\u0394VA Sensitivity',
+    visible: false
+}, {
+    name: '\u0394VC Sensitivity',
+    visible: false
+}, {
+    name: '\u0394VN Sensitivity',
+    visible: false
+}]
+});
+
+distChartMaster = new Highcharts.Chart({
+   chart: {
+      renderTo: 'dist-chart-master-container',
+      borderWidth: 0,
+      backgroundColor: null,
+      marginLeft: 60,
+      spacingBottom: 0,
+      reflow: false,
+      events: {
+         redraw: function(event) {
+            moveTdMasterLine();
+            moveTofMasterLine();
+            distChartMasterRendered = true;
+         }
+      }
+   },
+   title: {
+      text: null
+   },
+   xAxis: {
+      reversed: true,
+      startOnTick: true,
+      plotBands: [{
+         id: 'mask-before',
+         from: 1,
+         to: tdMaximumDefault,
+         color: Highcharts.theme.maskColor || 'rgba(0, 0, 0, 0.2)'
+      }],
+      title: {
+         text: 'Time Before Impact [years]'
+      },
+//      minPadding: 0.01,
+//      maxPadding: 0.01
+      minPadding: 0.0,
+      maxPadding: 0.0
+   },
+   yAxis: {
+      gridLineWidth: 0,
+      endOnTick: false,
+      labels: {
+         enabled: false
+      },
+      title: {
+         text: null
+      },
+      minPadding: 0,
+      maxPadding: 0,
+      showFirstLabel: false
+   },
+   tooltip: {
+      formatter: function() {
+         return false;
+      }
+   },
+   legend: {
+      enabled: false
+   },
+   credits: {
+      enabled: false
+   },
+   plotOptions: {
+      series: {
+         lineWidth: 1,
+         marker: {
+            enabled: false
+         },
+         shadow: false,
+         states: {
+            hover: {
+               lineWidth: 1                  
+            }
+         },
+         enableMouseTracking: false
+      }
+   },      
+   series: [{
+      type: 'area',
+      name: 'Distance',
+      fillColor: {
+         linearGradient: [0, 0, 0, 70],
+         stops: [
+            [0, highchartsOptions.colors[0]],
+            [1, 'rgba(0,0,0,0)']
+         ]
+      }
+   }, {
+      type: 'area',
+      name: 'Distance',
+      visible: false,
+      fillColor: {
+         linearGradient: [0, 0, 0, 70],
+         stops: [
+            [0, highchartsOptions.colors[1]],
+            [1, 'rgba(0,0,0,0)']
+         ]
+      }
+   }, {
+      type: 'area',
+      name: 'Sensitivity',
+      visible: false,
+      fillColor: {
+         linearGradient: [0, 0, 0, 70],
+         stops: [
+            [0, highchartsOptions.colors[2]],
+            [1, 'rgba(0,0,0,0)']
+         ]
+      }
+   }, {
+      type: 'area',
+      name: 'Sensitivity',
+      visible: false,
+      fillColor: {
+         linearGradient: [0, 0, 0, 70],
+         stops: [
+            [0, highchartsOptions.colors[3]],
+            [1, 'rgba(0,0,0,0)']
+         ]
+      }
+   }, {
+      type: 'area',
+      name: 'Sensitivity',
+      visible: false,
+      fillColor: {
+         linearGradient: [0, 0, 0, 70],
+         stops: [
+            [0, highchartsOptions.colors[4]],
+            [1, 'rgba(0,0,0,0)']
+         ]
+      }
+   }], 
+   exporting: {
+      enabled: false
+   } 
+});
+            

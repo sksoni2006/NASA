@@ -1,0 +1,111 @@
+body {
+	background-color: #303030;
+	font-family: Helvetica;
+	font-weight: normal;
+	font-size: 12px;
+}
+
+.pageContent {
+	position: relative;
+	background-color: white;
+	width: 90%;
+	color: #202020;
+	margin-left: auto;
+	margin-right: auto;
+	padding-bottom: 10px;
+	-webkit-border-radius: 8px;
+	-moz-border-radius: 8px;
+}
+
+.navigation {
+	font-size: 14px;
+	font-weight: bold;
+	margin-left: 10px;
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+.loginArea {
+	display: block;
+	background: white;
+	margin-left: 5px;
+	position: relative;
+	top: 15px;
+}
+
+.projectNameTitle {
+	text-align: center;
+	margin-left: auto;
+	margin-right: auto;
+	font-size: 40px; 
+}
+
+.dataDiv {
+	position: relative;
+	left: 0px;
+	background-color: white;
+	float: left;
+	margin-left: 50px;
+}
+
+.helloArea {
+        margin-left: 30px;
+        margin-right: 10px;
+        margin-bottom: 5px;
+        text-align: right;
+}
+
+.objectLink, .objectLine:hover, .objectLink:visited {
+	color: #000000;
+}
+
+a, a:hover, a:visited {
+	color: #000000;
+}
+
+.track {
+	float: left;
+	width: 150px;
+	height: 9px;
+	background: transparent url(../images/slider-images-track-right.png) no-repeat top right;
+}
+
+.track-left {
+	position: absolute;
+	width: 5px;
+	height: 9px;
+	background: transparent url(../images/slider-images-track-left.png) no-repeat top left;
+}
+
+.handle {
+	width: 19px;
+	height: 20px;
+}
+
+#tabs {
+        border: none;
+}
+
+#tabslinks {
+        height: 2.25em;
+        text-align: center;
+        margin-bottom: 3px;
+}
+
+#tabslinks li {
+        display:
+        inline-block;
+        margin: 0em;
+}
+
+.tooltip {
+	display: none;
+	background-color: #ffa;
+	border: 1px solid #cc9;
+	padding: 3px;
+	font-size: 13px;
+	text-align: left;
+	z-index: 9999;
+	-moz-box-shadow: 2px 2px 11px #666;
+	-webkit-box-shadow: 2px 2px 11px #666;
+}

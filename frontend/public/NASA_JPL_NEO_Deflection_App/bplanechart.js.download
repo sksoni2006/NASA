@@ -1,0 +1,202 @@
+/* 
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+
+    $('bplane-chart-container').style.height = $('bplane-chart-container').getWidth() + "px";
+    bplaneChart = new Highcharts.Chart({
+    credits: {
+        enabled: false
+    },
+    chart: {
+        renderTo: 'bplane-chart-container',
+        reflow: false,
+        type: 'scatter',
+        backgroundColor: 'rgba(0, 0, 0, 0)',
+        plotBorderWidth: 1,
+        zoomType: 'xy',
+        marginTop: 40,
+        marginBottom: 45,
+        marginLeft: 60,
+        marginRight: 5,
+        resetZoomButton: {
+            position: {
+                x: -20,
+                y: 10
+            },
+            relativeTo: 'chart'
+        }, 
+        events: {
+            selection: function(event) {
+                if (event.xAxis || event.yAxis) {
+                    if (event.xAxis) {
+                        bplaneZoomed = true;
+                        bplaneXMin = event.xAxis[0].min;
+                        bplaneXMax = event.xAxis[0].max;
+                    }
+                    if (event.yAxis) {
+                        bplaneZoomed = true;
+                        bplaneYMin = event.yAxis[0].min;
+                        bplaneYMax = event.yAxis[0].max;
+                    }
+                    var xCenter = (bplaneXMax + bplaneXMin) / 2;
+                    var yCenter = (bplaneYMax + bplaneYMin) / 2;
+                    var extent = Math.max(Math.abs(bplaneXMax - bplaneXMin),Math.abs(bplaneYMax - bplaneYMin)) / 2;
+                    bplaneXMin = xCenter - extent;
+                    bplaneXMax = xCenter + extent;
+                    bplaneYMin = yCenter - extent;
+                    bplaneYMax = yCenter + extent;
+                    bplaneChart.xAxis[0].setExtremes(bplaneXMin, bplaneXMax, false);
+                    bplaneChart.yAxis[0].setExtremes(bplaneYMin, bplaneYMax, false);
+                    bplaneChart.redraw();
+                }
+                if (!event.xAxis && !event.yAxis) {
+                    updateBPlaneBounds(true);
+                }
+            },
+            redraw: function(event) {
+                if (!bplaneChartIsRendering) {
+                    bplaneChartIsRendering = true;
+                    $('bplane-canvas-container').style.height = bplaneChart.plotHeight + "px";
+                    $('bplane-canvas-container').style.width = bplaneChart.plotWidth + "px";
+                    drawBPlaneElements();
+                    drawBPlaneOutlier();
+                }
+                bplaneChartIsRendering = false;
+                bplaneChartRendered = true;
+            }
+        }
+    },
+    tooltip: {
+        formatter: function() {
+             return false;
+/*             var text = "";
+             var key = this.x.toFixed(3) + " " + this.y.toFixed(3);
+             var el = bplanePointData[this.series.index][key];
+//                     var pos = bplanePointData[this.series.index].indexOf(el);
+             var len = Object.keys(bplanePointData[this.series.index]).length;
+             var pos = -1;
+             var idx = 0;
+             for (var curkey in bplanePointData[this.series.index]) {
+                 if (curkey === key) {
+                     pos = idx;
+                     break;
+                 }
+                 idx++;
+             }
+
+             if (pos === 0)
+                 text += "<strong>Undeflected Point:</strong><br \>";
+             else if (pos === len -1)
+                 text += "<strong>Current Deflection:</strong><br />";
+             text += "\u03BE(xi)  = " + this.x.toFixed(3) + ", \u03B6(zeta) = " + this.y.toFixed(3) +
+                     "<br \>\u0394VA = " + el[0] + ", \u0394VC = " + el[1] + ", \u0394VN = " + el[2];
+             return text; 
+            */
+        },
+        pointFormat: '',
+        useHTML: true
+    },
+    legend: {
+        floating: true,
+        y: 32,
+        x: 52,
+        align: 'left',
+        verticalAlign: 'top',
+        borderWidth: 2
+    },
+    plotOptions: {
+        series: {
+            events: {
+                legendItemClick: function (event) {
+                    if (this.visible)
+                        event.preventDefault(); // don't allow hiding of the currently selected series when it is clicked on
+                },
+                show: function(event) {
+                    var len = bplaneIndices.length;
+                    for (var i = 0; i < len; i++) {
+                        if (i != event.target.index && bplaneIndices[i])
+                            bplaneChart.series[i].hide();
+                    }
+                    var target = targetFromEvent(event);
+                    bplaneIndices[target.index] = true;
+                    setSeriesPointColors(target.index);
+                    moveBPlanePt();
+                    updateBPlaneBounds(false);
+                },
+                hide: function(event) {
+                    var target = targetFromEvent(event);
+                    bplaneIndices[target.index] = false;
+                    moveBPlanePt();
+                }
+             },
+             states: {
+                 hover: { 
+                    enabled: false
+                 } 
+             }
+         }
+       },
+    title: {
+        text: 'B-Plane',
+        x: 27
+    },
+    xAxis: {
+        title: {
+            text: '\u03BE Component [Earth Radii]'
+        },
+        min: -4,
+        max: 4,
+        minPadding: 0,
+        maxPadding: 0,
+        showLastLabel: true,
+        startOnTick: false,
+        endOnTick: false,
+        events: {
+            afterSetExtremes: function(e) {
+                if (!inBPSetExtremes_X) { // prevent recursion when setExtremes below is called with the third parameter (redraw) as true
+                    inBPSetExtremes_X = true;
+                    this.setExtremes(bplaneXMin, bplaneXMax, true, undefined, { trigger: 'zoom' });                         
+                }
+                var currBP = getCurrentBPIdx();
+                bpLastExtremes[currBP].xMin = this.min;
+                bpLastExtremes[currBP].xMax = this.max;
+                inBPSetExtremes_X = false;
+            }
+        }
+    },
+    yAxis: {
+        title: {
+           text: '\u03B6 Component [Earth Radii]',
+           margin: 0
+        },
+        min: -4,
+        max: 4,
+        minPadding: 0,
+        maxPadding: 0,
+        showLastLabel: true,
+        gridLineWidth: 0,
+        tickWidth: 1,
+        lineWidth: 1,
+        startOnTick: false,
+        endOnTick: false,
+        events: {
+            afterSetExtremes: function(e) {
+                if (!inBPSetExtremes_Y) { // prevent recursion when setExtremes below is called with the third parameter (redraw) as true
+                    inBPSetExtremes_Y = true;
+                    this.setExtremes(bplaneYMin, bplaneYMax, true, undefined, { trigger: 'zoom' });                         
+                }
+                var currBP = getCurrentBPIdx();
+                bpLastExtremes[currBP].yMin = this.min;
+                bpLastExtremes[currBP].yMax = this.max;
+                inBPSetExtremes_Y = false;
+            }
+        }
+   },
+   series: [{
+      name: 'BP 0',
+          id: 0,
+      zIndex: 10
+   }]
+});

@@ -1,0 +1,239 @@
+/* Extend jQuery datatable sorting
+ * Custom numeric sorting which puts n/a at the end always (asc/des)
+ */
+if (jQuery.fn.dataTable) {
+    jQuery.extend( jQuery.fn.dataTableExt.oSort, {
+        "numeric-null-asc": function ( a, b ) {
+            var af = parseFloat(a);
+            var bf = parseFloat(b);
+            if ( ! af && af != 0 ) { return 1; }
+            if ( ! bf && bf != 0 ) { return -1; }
+            return ((af < bf) ? -1 : ((af > bf) ? 1 : 0));
+        },
+        "numeric-null-desc": function ( a, b ) {
+            var af = parseFloat(a);
+            var bf = parseFloat(b);
+            if ( ! af && af != 0 ) { return 1; }
+            if ( ! bf && bf != 0 ) { return -1; }
+            return ((af < bf) ? 1 : ((af > bf) ? -1 : 0));
+        },
+        "datetime-asc": function ( a, b ) {
+          return ((a < b) ? -1 : ((a > b) ? 1 : 0));
+        },
+        "datetime-desc": function ( a, b ) {
+          return ((a < b) ? 1 : ((a > b) ? -1 : 0));
+        }
+    } );
+
+
+    /**
+     * This plug-in will treat numbers which are in scientific notation (for
+     * example `1E-10`, `1.2E6` etc) and sort them numerically.
+     *
+     *  @name Scientific notation sorting
+     *  @summary Sort data which is written in exponential notation.
+     *  @author [Nick Schurch](http://datatables.net/forums/profile/21757/nickschurch)
+     *
+     *  @example
+     *    $('#example').dataTable( {
+     *       columnDefs: [
+     *         { type: 'scientific', targets: 0 }
+     *       ]
+     *    } );
+     */
+    jQuery.extend( jQuery.fn.dataTableExt.oSort, {
+        "scientific-pre": function ( a ) {
+            return parseFloat(a);
+        },
+
+        "scientific-asc": function ( a, b ) {
+            return ((a < b) ? -1 : ((a > b) ? 1 : 0));
+        },
+
+        "scientific-desc": function ( a, b ) {
+            return ((a < b) ? 1 : ((a > b) ? -1 : 0));
+        }
+    } );
+
+}
+
+// If angular is defined add controller for main page
+if (typeof angular != 'undefined') {
+    mainApp = angular.module('mainApp', []);
+
+    mainApp.controller('MainCtrl', function($scope, $window) {
+
+        $scope.neoLookupValidation = function (str) {
+            //
+            // Remove leading/trailing white space and return null if blank:
+            str = str.trim();
+            if ( str.length == 0 ) { return null; }
+            $window.open('https://ssd.jpl.nasa.gov/sbdb.cgi?sstr='+str, '_blank');
+        };
+    });
+}
+
+/* Utils library
+ * Create an object to conatin all utility functions for app
+ */
+var Utils = {
+
+    /* Current table in angular scope */
+    currentScopeTable : null,
+
+    /* Impact probability tooltip method
+     * @param {String} data - A number value in the form of a string ie 1.2e-4
+     * @return {String} - Returns the HTML for a tooltip with IP information
+    * */
+    IPTooltipHTML : function(data) {
+      var formattedData = '';
+      var expo = String(data).split(/[eE]/);
+      if (expo.length== 1) {
+          // If not in exponential form set as formatted data with precision
+          formattedData = Number(expo[0]).toPrecision(2);
+      } else if (Number(data) == 1) {
+	  // Special case for 100% impact probability
+          formattedData = 100;
+      } else {
+          // Get earth impact chance in percentage and use toFixed
+          // function to display without exponential form
+          formattedData = Number(data*100).toFixed(Math.abs(expo[1])-1);
+      }
+      //
+      // Compute odds and format with comma-separation every 3 digits:
+      var fraction = Number(1.0/parseFloat(data)).toPrecision(2);
+      fraction = Number(fraction).toFixed(0);
+      var odds = fraction.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      //console.log(data, fraction, odds);
+      //
+      var missChance = 100 - formattedData;
+      var impactTT = formattedData + "% chance of Earth impact<br>"
+        + '1 in ' + odds + " odds of impact<br>"
+        + missChance + '% chance the asteroid will miss the Earth';
+      //var impactTT = "<pre>"
+      //  + formattedData + "% chance of Earth impact\n"
+      //  + '1 in ' + odds + " odds of impact\n"
+      //  + missChance + '% chance the asteroid will miss the Earth'
+      //  + "</pre>";
+      var impactHTML = '<span data-tooltip aria-haspopup="true" class="has-tip tip-top radius" title="' + impactTT + '">';
+      return impactHTML + Number(data).toExponential(1) + '</span>';
+    },
+
+    // Convert IP value to human-readable HTML
+    ipHumanHTML : function(data) {
+      var formattedData = '';
+      var expo = String(data).split(/[eE]/);
+      if (expo.length== 1) {
+          // If not in exponential form set as formatted data with precision
+          formattedData = Number(expo[0]).toPrecision(2);
+      } else if (Number(data) == 1) {
+	  // Special case for 100% impact probability
+	  formattedData = 100;
+      } else {
+          // Get earth impact chance in percentage and use toFixed
+          // function to display without exponential form
+          formattedData = Number(data*100).toFixed(Math.abs(expo[1])-1);
+      }
+      //
+      // Compute odds and format with comma-separation every 3 digits:
+      var fraction = Number(1.0/parseFloat(data)).toPrecision(2);
+      fraction = Number(fraction).toFixed(0);
+      var odds = fraction.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      //console.log(data, fraction, odds);
+      //
+      var missChance = 100 - formattedData;
+      var html = '<b>Alternate Representations for Impact Probability = ' + data + '</b><br>';
+      html += formattedData + "% chance of Earth impact<br>"
+        + '1 in ' + odds + " odds of impact<br>"
+        + missChance + '% chance the asteroid will miss the Earth';
+      //var impactTT = "<pre>"
+      //  + formattedData + "% chance of Earth impact\n"
+      //  + '1 in ' + odds + " odds of impact\n"
+      //  + missChance + '% chance the asteroid will miss the Earth'
+      //  + "</pre>";
+      return html;
+    },
+
+    handleAjaxError : function( xhr, textStatus, error ) {
+        var msg = '';
+        // if (textStatus === 'timeout') {
+        //     msg = 'The server took too long to send the data.';
+        // } else
+        if (xhr.status === 503 || xhr.status === 404) {
+            msg = 'The data server is temporarily unavailable. Try reloading this page in a few minutes.';
+        } else {
+            if (error) {
+              msg = 'The data server responded with the following message: <b>"'
+              + error + '"</b>. This response is not expected. If you continue to get this response after a few attempts, please <a href=" /contact/">notify us</a>.';
+            } else if( !jQuery.isEmptyObject(xhr.data)) {
+              if (xhr.data.message)
+                msg = 'The data server has recieved an unexpected request. Invalid request: ' + xhr.data.message;
+              else if (xhr.data.error){
+                msg = 'The data server has recieved an unexpected request. Invalid request: ' + xhr.data.error;
+              }
+            } else
+              msg = 'The data server has recieved an unexpected request. If you continue to get this response after a few attempts, please <a href=" /contact/">notify us</a>.';
+        }
+        $('#apiErrorAlert').html(msg);
+        $('#apiErrorAlert').show();
+
+        // Destroy table in current scope if one exists
+        if(Utils.currentScopeTable)
+          Utils.currentScopeTable.destroy();
+    },
+
+    // Standard DataTables button list:
+    buttons : [
+      { extend: 'print', titleAttr: 'Print table data above',
+        exportOptions: {
+          format: { header: function (data, column, row) { return data.replace(/<br>/g, ' '); } }
+        }
+      },
+      // { extend: 'copy', titleAttr: 'Copy the table data above to the clipboard' },
+      { extend: 'csv', titleAttr: 'Download table data above in CSV-format',
+        exportOptions: {
+          format: {
+            header: function (data, row, column) {
+              if ( /^\s*</.test(data) ) {
+                var html = data.replace(/<br>/g,' ').replace(/&nbsp;/g,' ')
+                  .replace(/″/g,'"').replace(/′/g,'\'');
+                return jQuery(html).text().replace(/^ +/,'');
+              } else { return data.replace(/<br>/g,' '); }
+            }
+          }
+        }
+      },
+      { extend: 'excel', titleAttr: 'Download table data above in Excel-format',
+        exportOptions: {
+          format: {
+            header: function (data, row, column) {
+              if ( /^\s*</.test(data) ) {
+                var html = data.replace(/<br>/g,' ').replace(/&nbsp;/g,' ')
+                  .replace(/″/g,'"').replace(/′/g,'\'');
+                return jQuery(html).text().replace(/^ +/,'');
+              } else { return data.replace(/<br>/g,' '); }
+            }
+          }
+        }
+      }
+    ]
+
+};
+
+
+
+// FOR centering tooltip content - foundation
+// $(document).foundation({
+//   tooltip: {
+//     selector : '.has-tip',
+//     additional_inheritable_classes : [],
+//     tooltip_class : '.tooltip',
+//     touch_close_text: 'tap to close',
+//     disable_for_touch: false,
+//     tip_template : function (selector, content) {
+//       return '<span data-selector="' + selector + '" class="'
+//         + Foundation.libs.tooltip.settings.tooltip_class.substring(1)
+//         + '" style="text-align: center;">' + content + '<span class="nub"></span></span>';
+//     }
+//   }
+// });

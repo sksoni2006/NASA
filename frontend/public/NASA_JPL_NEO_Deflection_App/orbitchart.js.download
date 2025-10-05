@@ -1,0 +1,69 @@
+/* 
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+$('orbit-chart-container').style.height = $('orbit-chart-container').getWidth() + "px";
+orbitChart = new Highcharts.Chart({
+   credits: {
+      enabled: false
+   },
+   chart: {
+      renderTo: 'orbit-chart-container',
+      reflow: false,
+      defaultSeriesType: 'scatter',
+      events: {
+         redraw: function(event) {
+                redrawOrbits();
+                drawLineOfNodes();
+                orbitChartRendered = true;
+         }
+      },
+      plotBorderWidth: 1,
+      marginTop: 40,
+      marginBottom: 45,
+      marginLeft: 50,
+      marginRight: 2
+   },
+   title: {
+      text: 'Orbit and Positions at Deflection'
+   },
+   legend: {
+      enabled: false
+   },
+   plotOptions: {
+      series: {
+         marker: {
+            enabled: true,
+            states: {
+               hover: {
+                  enabled: true
+               }
+            }
+         }
+      }
+   },
+   xAxis: {
+      title: {
+         text: 'X [AU]'
+      },
+      lineWidth: 0,
+      tickPixelInterval: 72,
+      showLastLabel: true,
+      gridLineWidth: 1,
+      min: -2,
+      max: 2
+   },
+   yAxis: {
+      title: {
+         text: 'Y [AU]',
+         margin: 0
+      },
+      min: -2,
+      max: 2
+   },
+   series: [{
+      name: 'Sun'
+      }]
+});
+

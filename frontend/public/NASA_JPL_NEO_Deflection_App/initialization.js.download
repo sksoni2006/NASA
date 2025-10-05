@@ -1,0 +1,1724 @@
+/* 
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+var developmentEnv = true;
+
+var year = 365.242199;
+var deltavaSlider;
+var deltavcSlider;
+var deltavnSlider;
+var orbitChartPaper;
+var orbit = new Orbit();
+var orbitChart;
+var orbitChartPaper = null;
+var orbitChartElements = new Array();
+var orbitChartElementsToDestroy = new Array();
+var bplane = new BPlane();
+var bplaneChart;
+var bplaneCanvas;
+var bplaneChartElements = new Array();
+var bplaneChartMaxZoomElements = new Array();
+var bplaneZoomed = false;
+var bplaneEdgeMargin = .1;
+var bplaneXMin = -4;
+var bplaneXMax = 4;
+var bplaneYMin = -4;
+var bplaneYMax = 4;
+var bpLastExtremes = [];
+var maxNumBPlanes = 10;
+var bplanePointData;
+var bplaneMaxAbsVal;
+var bplaneIndices = new Array();
+var bplaneLastPt;
+var inBPSetExtremes_X = false;
+var inBPSetExtremes_Y = false;
+var DVA = 0, DVC = 0, DVN = 0;
+var distChart;
+var distChartMaster;
+var distChartTdPath = null;
+var distChartTdTitle = null;
+var distChartTdTitleRect = null;
+var distChartTdMasterPath = null;
+var distChartTdMasterTitle = null;
+var distChartTdMasterTitleRect = null;
+var distChartTofPath = null;
+var distChartTofTitle = null;
+var distChartTofTitleRect = null;
+var distChartTofMasterPath = null;
+var distChartTofMasterTitle = null;
+var distChartTofMasterTitleRect = null;
+var distChartBPLabels = null;
+var distChartBPPaths = null;
+var distChartMasterBPLabels = null;
+var distChartMasterBPPaths = null;
+
+var oldTd = 1096;
+var oldTof = 400;
+//var daysIn50Years = 18262;
+var daysIn30Years = 10957;
+var maxNumYears = 30;
+var tdMaximumDefault = daysIn30Years;
+var tdMaximum = daysIn30Years;
+var distChartXMinLoaded = 7306;
+var distChartXMin = 7306;
+var distChartXMax = 1;
+var tofMaximum = 2000;
+var j$ = jQuery.noConflict();
+var updateBySlide = false;
+var updateByInput = false;
+var disableSliderEvents = true;
+var distDataValid = false;
+
+var tdUnit = "days";
+var tofUnit = "days";
+
+var currentDisplacement = 0;
+var currentBMag = 0;
+var currentPerigeeDist = 0;
+
+var solutionPossible = false;
+
+//Ensures there will be no 'console is undefined' errors
+window.console = window.console || (function(){
+    var c = {}; c.log = c.warn = c.debug = c.info = c.error = c.time = c.dir = c.profile = c.clear = c.exception = c.trace = c.assert = function(){};
+    return c;
+})();
+window.console.trace = window.console.trace || function() {};  // IE doesn't support trace
+
+
+window.onerror = function (message, url, lineNo) {
+    if (developmentEnv) {
+        alert('Error: ' + message + 
+              '\nUrl: ' + url + 
+              '\nLine Number: ' + lineNo);
+    } else {
+        console.log('Error: ' + message + 
+              '\nUrl: ' + url + 
+              '\nLine Number: ' + lineNo);
+        alert("We're Sorry.  An unhandled error has occurred.\nPressing Ctrl-F5 to refresh may solve the problem.");
+    }
+    return true;   
+};
+
+function showError(err, callLoc) {
+    try {
+        var errStr = (callLoc ? callLoc + ": " : "");
+        for (var prop in err) 
+            errStr += prop + ": " + err[prop] + "\n";
+        if (windowsInternetExplorer)
+            errStr += "IE" + browserVersion;
+        if (developmentEnv) {
+            console.trace();
+            alert(errStr);
+        } else {
+            console.log(errStr);
+            var msg = "We're Sorry.  An error has occurred.\n";
+            if (windowsInternetExplorer && browserVersion <= 8)
+                msg += "\nPlease upgrade to Internet Explorer 9 or\nlater or choose another browser.";
+            alert(msg);
+        }
+    } catch (err) {
+        console.log("Error handler error: " + err);
+    }
+}
+
+// Feature detect + local reference
+var storage = (function() {
+    var date = new Date;
+    var uid = date.toString();
+    var storage,
+        result;
+    try {
+        (storage = window.localStorage).setItem(uid, uid);
+        result = storage.getItem(uid) === uid;
+        storage.removeItem(uid);
+        return result && storage;
+    } catch(e) {
+        storage = false;
+        return false;
+    }
+}());
+
+function is_touch_device() {
+ return (('ontouchstart' in window)
+      || (navigator.MaxTouchPoints > 0)
+      || (navigator.msMaxTouchPoints > 0));
+}
+
+function targetFromEvent(event) {
+    try {
+        var target = event.currentTarget ? event.currentTarget : event.srcElement; // currentTarget not supported by IE 8
+        return target;
+    } catch (err) {
+        if (event.hasOwnProperty('srcElement'))  // IE 9 doesn't like when event.currentTargent doesn't exist
+            return event.srcElement;
+    }
+    return null;
+}
+
+function convertTime(from, to) {
+	var factor;
+	if (from === to)
+		factor = 1;
+	else if (from === "days" && to === "years")
+		factor = 1/year;
+	else if (from === "years" && to === "days")
+		factor = year;
+	return factor;
+}
+
+function acceptTdInput() {
+    var td = getTdDays();
+    if (isNaN(Number(td)))
+        setTdValue(oldTd);
+    if (td > tdMaximum - 7)
+        td = tdMaximum - 7;
+    if (td < 1)
+        td = 1;
+    setTdValue(td);
+}
+
+function getTdDays() {
+    var fieldVal = jQuery('#td').val();
+    if (isNaN(Number(fieldVal))) {
+        var to = jQuery('#tdTime option:selected').text();
+        var newVal = oldTd*convertTime("days", to);
+        if (to === "days")
+            newVal = newVal.round();
+        else
+            newVal = newVal.toFixed(3);
+        jQuery('#td').val(newVal);
+    }
+	return jQuery('#td').val()*convertTime(jQuery('#tdTime option:selected').text(), "days").round();
+}
+
+function setTdValue(val, from) {
+    if (isNaN(Number(val)))
+        var daysVal = oldTd;
+    else {
+        if (from === undefined)
+            from = "days";
+        var daysVal = val*convertTime(from,"days");
+    }
+    if (daysVal > tdMaximum - 7)
+        daysVal = tdMaximum - 7;
+    if (daysVal < 1)
+        daysVal = 1;
+    oldTd = daysVal;
+	var to = jQuery('#tdTime option:selected').text();
+	var newVal = daysVal*convertTime("days", to);
+	if (to === "days")
+		newVal = newVal.round();
+	else
+		newVal = newVal.toFixed(3);
+	jQuery('#td').val(newVal);
+}
+
+function updateTdDependencies() {
+    var newVal = getTdDays();  // value could have been clipped by setTdValue()
+    moveTdLine(newVal);
+    var maxTofDays = Math.min(tofMaximum, Math.round(tdMaximum - newVal) - 1);
+    if (getTofDays() > maxTofDays)
+        setTofValue(maxTofDays);
+    else
+        updateOrbitsTd(newVal);
+    moveTofLine(getTdDays() + Math.min(getTofDays(),maxTofDays));
+    clearCharts(false);
+}
+
+function setTdValueWithUpdate(val, from) {
+    setTdValue(val, from);
+    updateTdDependencies();
+}
+
+function changeTdValueBy(inc) {
+    var newVal = Math.max(1,Math.min(tdMaximum,getTdDays() + inc));
+    setTdValueWithUpdate(newVal);
+}
+
+function acceptTofInput() {
+    var tof = getTofDays();
+    if (isNaN(Number(tof)))
+        setTofValue(oldTof);
+    if (tof > tofMaximum - 1)
+        tof = tofMaximum - 1;
+    if (tof < 1)
+        tof = 1;
+    setTofValue(tof);
+}
+
+function getTofDays() {
+    var fieldVal = jQuery('#tof').val();
+    if (isNaN(Number(fieldVal))) {
+        var to = jQuery('#tofTime option:selected').text();
+        var newVal = oldTof*convertTime("days", to);
+        if (to === "days")
+            newVal = newVal.round();
+        else
+            newVal = newVal.toFixed(3);
+        jQuery('#tof').val(newVal);
+    }
+    return jQuery('#tof').val()*convertTime(jQuery('#tofTime option:selected').text(), "days");
+}
+
+function setTofValue(val, from) {
+    if (isNaN(Number(val)))
+        var daysVal = oldTd;
+    else {
+        if (from === undefined)
+            from = "days";
+        var daysVal = val*convertTime(from,"days");
+    }
+    if (daysVal < 1)
+        daysVal = 1;
+    else 
+        daysVal = Math.min(daysVal, tofMaximum, tdMaximum - getTdDays() - 1);  // clip end to maximum range or, if TD is near left side, to how much room is left between Td and the edge 
+    var to = jQuery('#tofTime option:selected').text();
+    oldTof = daysVal;
+    var newVal = daysVal*convertTime("days", to);
+    if (to === "days")
+        newVal = newVal.round();
+    else
+        newVal = newVal.toFixed(3);
+    jQuery('#tof').val(newVal);
+}
+
+function updateTofDependencies() {
+    var tofVal = getTofDays();  // tof may have been clipped by setTofValue
+    moveTofLine(Math.round(parseFloat(getTdDays() + tofVal)));
+    clearCharts(false);
+}
+
+function setTofValueWithUpdate(val, from) {
+    setTofValue(val,from);
+    updateTofDependencies();
+}
+
+function changeTofValueBy(inc) {
+    var newVal = Math.max(1,Math.min(tdMaximum,getTofDays() + inc));
+    setTofValueWithUpdate(newVal);
+}
+
+function convertDistance(element, to, set) {
+	if (set === undefined) {
+                set = true;
+        }
+	var factor;
+        if (from === to)
+                factor = 1;
+        else if (from === "km" && to === "m")
+                factor = 1000;
+        else if (from === "m" && to === "km")
+                factor = 1/1000;
+	if (set && !!element)
+	        element.val(parseFloat(element.val()*factor));
+	if (!!element)
+		return element.val()*factor;
+	else
+		return factor;
+}
+
+function checkEnter(event) {
+	var keynum;
+ 
+	if (window.event)
+		keynum = event.keyCode;
+	else if (event.which)
+		keynum = event.which;
+ 
+	if (String.fromCharCode(keynum) === "r") {
+		event.srcElement.blur();
+		return false;
+	}
+}
+
+function disableSelection(target){
+
+    if (typeof target.onselectstart !== "undefined") //IE route
+        target.onselectstart=function(){ return false; };
+
+    else if (typeof target.style.MozUserSelect !== "undefined") //Firefox route
+        target.style.MozUserSelect="none";
+
+    else //All other route (ie: Opera)
+        target.onmousedown = function(){ return false; };
+
+    target.style.cursor = "default";
+}
+
+/*
+$('input').keypress(function(e) {
+    var a = [];
+    var k = e.which;
+
+    for (i = 48; i < 58; i++)
+        a.push(i);
+
+    if (!($.inArray(k,a)>=0))
+        e.preventDefault();
+});​
+*/
+
+function stopPropagation(e){
+	if (!e) var e = window.event;
+	e.cancelBubble = true;
+	if (e.stopPropagation) e.stopPropagation();
+	return false;
+}
+
+function isDeltaVMode() {
+    return jQuery("#tabs").tabs('option', 'active')===0 ? true : false;
+}
+
+function isInterceptMode() {
+    return jQuery("#tabs").tabs('option', 'active')===1 ? true : false;
+}
+
+function isAdvancedMode() {
+    return $('advancedcheckbox').checked;
+}
+
+function getObjectDensity() {
+    if (isAdvancedMode())
+        return jQuery('#objectDensityText').val();
+    else
+        return jQuery('#objectDensity').val();        
+}
+
+function getBeta() {
+    if (isAdvancedMode())
+        return jQuery('#betaText').val();
+    else
+        return jQuery('#beta').val();
+}
+
+function objectClicked() {
+    currentLoadedState = "object|" + jQuery('#object').val();
+    resetCharts();
+}
+
+function advancedClicked(doUpdate) {
+    if (isAdvancedMode()) {
+        jQuery("#vehicle2box").show();
+        jQuery("#vehicle3box").show();
+        jQuery("#objectDensityText").show();
+        jQuery("#objectDensity").hide();
+        jQuery("#betaText").show();
+        jQuery("#beta").hide();
+        jQuery("#objectDensityText").val(jQuery("#objectDensity").val());
+        jQuery("#betaText").val(jQuery("#beta").val());
+        jQuery("#numrevsbox").show();
+    } else {
+        jQuery("#vehicle2box").hide();
+        jQuery("#vehicle3box").hide();        
+        jQuery("#objectDensityText").hide();
+        jQuery("#objectDensity").show();
+        jQuery("#betaText").hide();
+        jQuery("#beta").show();
+        jQuery("#numrevsbox").hide();
+    }   
+    resizePage();
+    if (doUpdate !== 'undefined' && doUpdate === true) {
+        moveBPlanePt();
+        saveUserPreferences();
+    }
+}
+
+function numRevsClicked(refresh) {
+    jQuery("#numrevs").prop("disabled", !$('numrevscheckbox').checked);
+    if (refresh)
+        clearCharts();
+}
+
+function getNumRevs() {
+    var revs = 0;
+    if (isAdvancedMode() && $('numrevscheckbox').checked) {
+        revs = Number(jQuery("#numrevs").val());
+        if (isNaN(revs))
+            revs = -1;
+    } else {
+        revs = -1;  // -1 means to autocompute the number of revolutions
+    }
+    return revs;
+}
+
+var inTipDelay = false;
+var tip = {};
+function tipDelay() {
+    inTipDelay = false;
+}
+
+function tooltipHover(e) {
+    tooltipHide();
+    if (!tooltipsEnabled())
+        return;
+    var target = targetFromEvent(e);
+    tip = jQuery('#tooltip-popup'); 
+    var text = tipData[target.id];
+    tip.html(text);
+
+    if (tip.length > 1)
+        return;
+    var mousex = e.pageX + 20; //Get X coodrinates 
+    var mousey = e.pageY + 20; //Get Y coordinates 
+    tip.css({  top: -1000, left: -4000 }); //  move it out of the visible area
+    tip.show();  // have to show it to get it's width with the new text
+    var tipWidth = tip.width(); //Find width of tooltip 
+    var tipHeight = tip.height(); //Find height of tooltip 
+    tip.hide();
+
+    //Distance of element from the right edge of viewport 
+    var tipVisX = jQuery(window).width() - (mousex + tipWidth); 
+    //Distance of element from the bottom of viewport 
+    var tipVisY = jQuery(window).height() - (mousey + tipHeight); 
+
+    if ( tipVisX < 20 ) { //If tooltip exceeds the X coordinate of viewport 
+        mousex = e.pageX - tipWidth - 20; 
+    } if ( tipVisY < 20 ) { //If tooltip exceeds the Y coordinate of viewport 
+        mousey = e.pageY - tipHeight - 20; 
+    } 
+    //Absolute position the tooltip according to mouse position 
+    tip.css({  top: mousey, left: mousex }); 
+    tip.fadeIn(); //Show tooltip 
+    inTipDelay = true;
+    setTimeout(function() { tipDelay(); }, 1000);   
+}
+
+function tooltipHide() {
+    if (!inTipDelay)    
+        jQuery('#tooltip-popup').hide();
+}
+
+var toolLastXPos = -100;
+var toolLastYPos = -100;
+
+function tooltipMouseMove(e) {
+    if (!inTipDelay && (Math.abs(toolLastXPos - e.pageX) > 3 || Math.abs(toolLastYPos - e.pageY) > 3) )
+        jQuery('#tooltip-popup').hide();
+    toolLastXPos = e.pageX;
+    toolLastYPos = e.pageY;
+}
+
+function initializeToolTips() {
+    jQuery(".tip_trigger").hover(function(e) {  tooltipHover(e); },
+                                 function()  {  tooltipHide(); } )
+                          .mousemove(function(e) { tooltipMouseMove(e); }    ); 
+}
+
+var tipData = {
+    'tdbox' : "The number of days/years before impact<br>that deflection of the NEO is to take place",    
+    'tofbox' : "Transfer time from Earth launch<br>to NEO deflection (Maximum 2000 days)",    
+    'deltavasliderbox' : "Change in velocity in the NEO's<br> along-track direction at time of deflection", 
+    'deltavcsliderbox' : "Change in velocity in the NEO's<br>cross-track direction at time of deflection.<br>Positive values are toward the center of the orbit but<br>perpendicular to the along-track direction.", 
+    'deltavnsliderbox' : "Change in velocity in the NEO's<br>direction normal to the plane, at time<br>of deflection", 
+    'vehiclesbox' : "Launch vehicle and the number of launches.<br>All launches are assumed to be simultaneous.",    
+    'numrevsbox' : "Force the transfer orbit calculation<br>to use a specified number of orbits.",    
+    'massdeliveredbox' : "Maximum mass of the interceptor able to reach the NEO.<br>NONE indicates insufficient launch energy (large C3)",    
+    'diameterbox' : "The diameter of the NEO",    
+    'densitybox' : "Density of the object.  Higher density<br>means the object is harder to move.", 
+    'betabox' : "Beta is the momentum enhancement to the asteroid introduced<br>by the ejecta thrown back in the direction of the incoming<br>spacecraft impactor.<br>The value of beta will largely depend upon the velocity of the<br>encounter and the porosity of the asteroid.<br>No beta effect is indicated by a value of 1.", 
+    'objectmassbox' : "Mass computed from the diameter and<br>density assuming a spherical shape", 
+    'resetbox' : "Reset to the default values.<br>The currently selected NEO will not change", 
+    'deltasliderbox' : "Change the increment for the \u0394 slider arrows", 
+    'advancedbox' : "Expose more advanced features", 
+    'tooltipsbox' : "Turn the pop-up tips on or off", 
+
+    'deltavaresultbox' : "Change in velocity in the NEO's<br> along-track direction at time of deflection", 
+    'deltavcresultbox' : "Change in velocity in the NEO's<br>cross-track direction at time of deflection.<br>Positive values are toward the center of the orbit but<br>perpendicular to the along-track direction.", 
+    'deltavnresultbox' : "Change in velocity in the NEO's<br>direction normal to the plane, at time<br>of deflection", 
+    'deltavtotalresultbox' : "The combined magnitude of the<br>\u0394VA, \u0394VC and \u0394VN values", 
+    'periodatdbox' : "NEO period (time of a full orbit) at the time of deflection", 
+    'deltaperiodbox' : "Change in the NEO's period due to deflection", 
+    'zetabox' : "Change in (zeta) position in the B-Plane.<br>Corresponds to vertical change in the B-Plane plot.", 
+    'xibox' : "Change in (xi) position in the B-Plane.<br>Corresponds to horizontal change in the B-Plane plot.", 
+    'bmagnituedbox' : "The distance from Earth's center that<br>the NEO would pass WITHOUT being influenced<br>by Earth's gravity", 
+    'captureradiusbox' : "Minimum radius from Earth's<br>center to avert an impact", 
+    'perigeedistbox' : "Miss distance from Earth's center.<br> Values less than 1 indicate an impact.", 
+    'missdistbox' : "Miss distance from Earth's surface.",
+    'vinfinitybox' : "Speed that the NEO would be travelling as it<br>passed through the B-Plane WITHOUT accounting<br>for the pull of the Earth.", 
+    'c3box' : '"Characteristic Energy" or launch energy:<br>The energy of a kg of the spacecraft once it gets away from Earth\'s gravitational field', 
+    'relvelocitybox' : "Relative velocity between the interceptor<br>and the NEO at the time of intercept", 
+    'phaseanglebox' : "Angle between the approaching interceptor, the NEO and the Sun<br>at time of intercept.  Used to determine how much of the<br>NEO will be lit by the sun as seen from the interceptor.", 
+    'nosolutionbox' : "There is no launch solution possible that will<br>reach the NEO with the selected vehicle.", 
+
+    'clearbplanehistbutton' : "Remove all B-Plane pass-through points other<br>than the original (red) and the current (green)", 
+    'savesessionbuttonbox' : "Save the times and selected values for your session in your browser", 
+    'restoresessionbuttonbox' : "Load a previously saved session from a<br>list or clean up the saved session history", 
+    'plotbuttonbox' : "Display a plot showing<br>optimal times to launch",
+    'objectDragger' : "Drag to change the time of deflection / intercept", 
+    'launchDragger' : "Drag to change the launch day",
+
+    'dist-chart-container' : "<font class='tooltipTitles'>Distance and \u0394V Sensitivity</font><br><br>View NEO position and best times to influence the object.<br><br>Click and drag the Yellow and Teal lines to<br>alter deflection and launch times.<br><br>Click the legend above to view a different data plot.<br><br>Drag across a portion of the time-line to zoom in.", 
+    'dist-chart-master-container' : "Shows the full time-line", 
+    'orbit-chart-container' : "<font class='tooltipTitles'>Object and Earth Orbits and Positions</font><br><br>Shows NEO and Earth position at time of deflection<br>and Earth's position at launch time.<br><br>Click and drag the Object and Launch points<br>to change times.", 
+    'bplane-chart-container' : "<font class='tooltipTitles'>B-Plane</font><br><br>The B-Plane represents various factors when the NEO passes<br>through the plane of the Earth.<br><br>The plotted points show where the NEO would pass<br>if Earth's gravity is NOT accounted for.<br><br>Click on the BP legend to view the B-planes of Keyhole<br>(flyby) events, if any.<br><br>Drag diagonally in the plot to zoom in.",
+    'objboxvi131' : "Option Test"
+};
+
+function tooltipsClicked() {
+    saveUserPreferences();
+}
+
+function tooltipsEnabled() {
+    return jQuery("#tooltipscheckbox").prop("checked");
+}
+
+function resetClicked() {
+    currentLoadedState = "object|" +  jQuery('#object').val();
+    resetCharts();
+}
+function showParametersDialog() {
+    if (isDeltaVMode()) {
+        jQuery('#transferOrbitParametersBlock').hide();
+    } else {
+        jQuery('#transferOrbitParametersBlock').show();        
+    }      
+    jQuery('#orbitalParametersDialog').dialog('open');
+}
+
+var currPlotIdx=0;
+var plotImageLoaded = false;
+
+function nextPlotClicked() {
+    currPlotIdx--;
+    updatePlotImage();
+    setPlotButtonStates();
+}
+
+function prevPlotClicked() {
+    currPlotIdx++;
+    updatePlotImage();
+    setPlotButtonStates();
+}
+
+function setPlotButtonStates() {
+    if (currPlotIdx===3) {
+        jQuery('#plotPrevButton').prop('disabled', true);
+    } else {
+        jQuery('#plotPrevButton').prop('disabled', false);
+    }
+    if (currPlotIdx===0) {
+        jQuery('#plotNextButton').prop('disabled', true);
+    } else {
+        jQuery('#plotNextButton').prop('disabled', false);
+    }
+}
+
+function mapUnit() {
+    var to = jQuery('#tdTime option:selected').text();    
+    if (to === 'days')
+        return 'd';
+    else
+        return 'y';
+}
+
+function updatePlotImage() {
+    try {
+        plotImageLoaded = false;
+        var idx = currPlotIdx >=0 ? currPlotIdx%4 : ((currPlotIdx%4) + 4)%4;
+        var plotLetter = "abcd".charAt(idx); 
+        var objSelect = jQuery('#object');
+        var objName = objSelect.val();
+        var imgName = "pcplots/" + objName + "/" + objName + plotLetter + "_" + mapUnit() + ".png";
+        jQuery("#plotCurrentObjectLabel").html("Object: " + jQuery("#object option:selected").text());
+        var pImg = jQuery('#plot-image');
+        var imgLoaded = pImg.attr('src', object_data_url + imgName);
+        if (imgLoaded !== 'undefined') {
+            resizePlotImage();
+            plotImageLoaded = true;
+            setTimeout(function() { loadedPlotImageTimeout(); }, 2000);
+        } else {
+            jQuery("#noPlotImageLoaded").show();
+        }
+    } catch (e) {
+        jQuery("#noPlotImageLoaded").show();
+    }
+}
+
+function loadedPlotImageTimeout() {
+    var plImage = jQuery('#plot-image');
+    var im_h = plImage.height();
+    var im_w = plImage.width();
+    if ( (im_h <= 0 || im_w <= 0) && 
+          jQuery("#plotOverlay").is(':visible')) 
+        jQuery("#noPlotImageLoaded").show();
+}
+
+function resizePlotImage() {
+    var margin = 20;
+    var buttonSpace = 80;
+    var plImage = jQuery('#plot-image');
+    var im_h = plImage.height();
+    var im_w = plImage.width();
+    var w_h = jQuery(window).height();
+    var w_w = jQuery(window).width();
+    if (im_h > 0 && im_w > 0) {
+        var im_aspect = im_w / im_h;
+        var w_aspect = w_w / (w_h - buttonSpace);
+        if (im_aspect > w_aspect) {
+            var w = w_w - 2 * margin;
+            var h = w / im_aspect;
+            jQuery('#plotCenterOverlay').css({
+                'left': margin + 'px',
+                'top' : margin + ((w_h - buttonSpace) - h) / 2 + 'px',
+                'width' : w + 'px',
+                'height': h + 'px'
+            });
+            plImage.css( { 'width' : '100%', 'height' : 'auto' } );
+        } else {
+            var h = w_h - margin - buttonSpace;
+            var w = h * im_aspect;
+            jQuery('#plotCenterOverlay').css({
+                'left': (w_w - w) / 2 + 'px',
+                'top' : margin + 'px',
+                'width' : w + 'px',
+                'height': h + 'px'
+            });
+            plImage.css( { 'width' : 'auto', 'height' : '100%' } );
+        }
+    } 
+    var buttons = jQuery("#plotWindowButtons");
+    buttons.css( { 
+        'top' : w_h - (buttonSpace + buttons.height()) / 2,
+        'left': margin + (w_w - buttons.width()) / 2
+    });
+    setPlotButtonStates();
+}
+
+function showPlotOverlay(show) {
+    var pl = jQuery('#plotOverlay');
+    var plImage = jQuery('#plotCenterOverlay');
+    var plButtons = jQuery("#plotWindowButtons");
+    var plNoImg = jQuery("#noPlotImageLoaded");
+    currPlotIdx = 0;
+    if (show === 'undefined') {
+        pl.hide();
+        plImage.hide();
+        plButtons.hide();
+        plNoImg.hide();
+    } else {
+        if (show) {
+            pl.show();
+            window.scrollTo(0,0);
+            updatePlotImage();
+            if (!plotImageLoaded)
+                jQuery("#noPlotImageLoaded").show();
+            else {
+                plImage.show();
+                resizePlotImage();
+            }
+            plButtons.show();
+        }  else {
+            pl.hide();
+            plImage.hide();
+            plButtons.hide();
+            plNoImg.hide();
+        }
+    }
+}
+
+
+function loadObjectList() {
+  var oreq = new Ajax.Request(
+    object_data_url+'object_list.json',
+    {
+      method: 'GET',
+      dataType: 'application/json',
+      onComplete: function(req, exc) {
+        var json = req.responseJSON;
+        //console.log(json);
+        //console.log(json.length);
+        var defaultID = null;
+        $(json).each( function(rec) {
+          //console.log(rec.group, rec.members.length);
+          var opt = '<optgroup label="' + rec.group + '"></optgroup>';
+          jQuery('#object').append(opt);
+          $(rec.members).each( function(oRec) {
+            opt = '<option value="' + oRec.id + '">' + oRec.name + '</option>';
+            jQuery('#object').append(opt);
+            if ( oRec.selected === true ) { defaultID = oRec.id; };
+            //console.log(oRec);
+          });
+        });
+        //console.log('defaultID='+defaultID);
+        jQuery('#object').val(defaultID);
+        //console.log('val()='+jQuery('#object').val());
+        //console.log('DONE');
+        setup();
+      },
+      onException: function(req, exc) { console.log('FAIL'); }
+    }
+  );
+  //jQuery('#object').append('<option value="pdc15">PDC15</option>');
+}
+
+var prevDeltaVASliderValue = 0.00001;
+var prevDeltaVCSliderValue = 0.00001;
+var prevDeltaVNSliderValue = 0.00001;
+//var rendered = false;
+function setup() {
+        //console.log( 'DEFAULT='+jQuery('#object').val() );  // TESTING
+	detectBrowser();
+    initDataSave();
+    initializeToolTips();
+	jQuery(window).resize(function() {
+		resizePage();
+	});
+	disableSelection(document.getElementById('tdleft'));
+	disableSelection(document.getElementById('tdright'));
+	disableSelection(document.getElementById('deltavaleft'));
+	disableSelection(document.getElementById('deltavaright'));
+	disableSelection(document.getElementById('deltavcleft'));
+	disableSelection(document.getElementById('deltavcright'));
+	disableSelection(document.getElementById('deltavnleft'));
+	disableSelection(document.getElementById('deltavnright'));
+	disableSelection(document.getElementById('tofleft'));
+	disableSelection(document.getElementById('tofright'));
+	Ajax.Responders.register({
+	    onCreate: function() {
+		if (Ajax.activeRequestCount > 0) {
+			if (mask)
+				$('notification').show();
+			else
+				$('busy').show();
+		}
+	    },
+	    onComplete: function() {
+		if (Ajax.activeRequestCount === 0) {
+			$('notification').hide();
+			$('busy').hide();
+		}
+	    }
+	});
+
+    $('missionvalues').hide();
+	jQuery(function() {
+		jQuery("#tabs").tabs({
+			activate: function(event, ui) {
+				if (ui.newPanel.selector === '#firsttab') {  // switched to delta V Mode
+					tdMaximum = tdMaximumDefault;
+                    $('missionvalues').hide();
+                    enableObjectInput(false);
+					resizePage();
+					updateBPlane(jQuery('#object').val(), getTdDays(), -1, true);
+					moveTofLine(0);
+				}
+				else {
+					tdMaximum = tdMaximumDefault - 1;
+                    $('missionvalues').show();
+                    enableObjectInput(true);
+					resizePage();
+					updateBPlane(jQuery('#object').val(), getTdDays(), getTofDays(), true);
+					moveTofLine(Math.round(parseFloat(getTdDays() + getTofDays())));
+                    updateOrbitsTd(getTdDays());
+				}
+//				rendered = true;
+			}
+		});
+		jQuery("#dialog").dialog({
+			autoOpen: false,
+            modal: true
+		});
+   		jQuery("#restoreSessionDialog").dialog({
+			autoOpen: false,
+            modal: true,
+            width: '1000px'
+		});
+
+		jQuery("#orbitalParametersDialog").dialog({
+			autoOpen: false
+		});
+		jQuery("#deltaButtonDialog").dialog({
+			autoOpen: false,
+                        minWidth: 171,
+			width: 171
+		});
+   		jQuery("#porkchopPlotDialog").dialog({
+			autoOpen: false,
+            width: '1000px'
+		});
+	});
+	deltavaSlider = new Control.Slider('deltava-handle', 'deltava-track', {
+		range: $R(-500, 500),
+		sliderValue: 0.00001,
+		onSlide: function(value) {
+			if (disableSliderEvents)
+				return;
+			updateBySlide = true;
+			$('deltava').setValue(value.toFixed(3));
+			moveBPlanePt();
+		},
+		onChange: function(value) {
+			if (disableSliderEvents) {
+				prevDeltaVASliderValue = value;
+				return;
+			}
+			if (!updateBySlide) {
+				if (updateByInput) {
+					if ($('deltava').getValue() === prevDeltaVASliderValue)
+						return;
+					if ($('deltava').getValue() > 500 || $('deltava').getValue() < -500) {
+						$('deltava').setValue(prevDeltaVASliderValue);
+						deltavaSlider.setValue(prevDeltaVASliderValue);
+						Effect.Appear('out-of-range', {duration: 0.5});
+						setTimeout('Effect.Fade(\'out-of-range\',{duration: 0.5});', 2500);
+						return;
+					}
+				}
+				else
+					$('deltava').setValue(value.toFixed(3));
+				moveBPlanePt();
+			}
+			prevDeltaVASliderValue = $('deltava').getValue();
+			updateBySlide = false;
+		}
+	});
+	deltavcSlider = new Control.Slider('deltavc-handle', 'deltavc-track', {
+		range: $R(-500, 500),
+		sliderValue: 0.00001,
+		onSlide: function(value) {
+			if (disableSliderEvents)
+				return;
+			updateBySlide = true;
+			$('deltavc').setValue(value.toFixed(3));
+			moveBPlanePt();
+		},
+		onChange: function(value) {
+			if (disableSliderEvents) {
+				prevDeltaVCSliderValue = value;
+				return;
+			}
+			if (!updateBySlide) {
+				if (updateByInput) {
+					if ($('deltavc').getValue() === prevDeltaVCSliderValue)
+						return;
+					if ($('deltavc').getValue() > 500 || $('deltavc').getValue() < -500) {
+						$('deltavc').setValue(prevDeltaVCSliderValue);
+						deltavcSlider.setValue(prevDeltaVCSliderValue);
+						Effect.Appear('out-of-range', {duration: 0.5});
+						setTimeout('Effect.Fade(\'out-of-range\',{duration: 0.5});', 2500);
+						return;
+					}
+				}
+				else
+					$('deltavc').setValue(value.toFixed(3));
+				moveBPlanePt();
+			}
+			prevDeltaVCSliderValue = $('deltavc').getValue();
+			updateBySlide = false;
+		}
+	});
+	deltavnSlider = new Control.Slider('deltavn-handle', 'deltavn-track', {
+		range: $R(-500, 500),
+		sliderValue: 0.00001,
+		onSlide: function(value) {
+			if (disableSliderEvents)
+				return;
+			updateBySlide = true;
+			$('deltavn').setValue(value.toFixed(3));
+			moveBPlanePt();
+		},
+		onChange: function(value) {
+			if (disableSliderEvents) {
+				prevDeltaVNSliderValue = value;
+				return;
+			}
+			if (!updateBySlide) {
+				if (updateByInput) {
+					if ($('deltavn').getValue() === prevDeltaVNSliderValue)
+						return;
+					if ($('deltavn').getValue() > 500 || $('deltavn').getValue() < -500) {
+						$('deltavn').setValue(prevDeltaVNSliderValue);
+						deltavnSlider.setValue(prevDeltaVNSliderValue);
+						Effect.Appear('out-of-range', {duration: 0.5});
+						setTimeout('Effect.Fade(\'out-of-range\',{duration: 0.5});', 2500);
+						return;
+					}
+				}
+				else
+					$('deltavn').setValue(value.toFixed(3));
+				moveBPlanePt();
+			}
+			prevDeltaVNSliderValue = $('deltavn').getValue();
+			updateBySlide = false;
+		}
+	});
+    $('tdBarDragger').onmousemove = distMouseMoves;
+    $('tdBarDragger').onmousedown = distMouseDown;
+    $('tofBarDragger').onmousemove = distMouseMoves;
+    $('tofBarDragger').onmousedown = distMouseDown;
+    $('objectDragger').onmousemove = orbitMouseMoves;
+    $('objectDragger').onmousedown = orbitMouseDown;
+    $('launchDragger').onmousemove = orbitMouseMoves;
+    $('launchDragger').onmousedown = orbitMouseDown;
+	resetCharts();
+    restoreUserPreferences();
+	resizePage();
+    if (is_touch_device()) 
+        alert("This webpage is not optimized\nfor touch screens");
+    setTimeout(function() { resizePage(); }, 300);  // cleanup the layout after all the data loads.
+    setTimeout(function() { resizePage(); }, 1000);  // cleanup the layout after all the data loads (2nd opportunity).
+    setTimeout(function() { resizePage(); }, 3000);  // cleanup the layout after all the data loads (3rd opportunity. 
+    enableObjectInput(false);
+    continualRefresh();
+}
+
+function continualRefresh() {
+    resizePage();
+    setTimeout(function() { continualRefresh(); }, 5000);  // Every 5 seconds refresh the page (catches a few redraw issues caused by network delays and asynchronous behaviors)
+}
+
+var rememberMouseUp;
+var rememberMouseMove;
+var draggingTD = false;
+var draggingTof = false;
+var draggingObject = false;
+var draggingLaunch = false;
+var tdDragOffset = 0;
+var orbitDragOffset = { x:0, y:0 };
+
+function xyFromEvent(e) {
+    var X, Y;
+    var ev=(!e)?window.event:e;//IE:Moz
+    if (ev.pageX){//Moz
+        X=ev.pageX+window.pageXOffset;
+        Y=ev.pageY+window.pageYOffset;
+    }
+    else if(ev.clientX){//IE
+        if(document.documentElement){//IE 6+ strict mode
+            X=ev.clientX+document.documentElement.scrollLeft;
+            Y=ev.clientY+document.documentElement.scrollTop;
+        }
+        else if(document.body){//Other IE
+            X=ev.clientX+document.body.scrollLeft;
+            Y=ev.clientY+document.body.scrollTop;
+        }
+    }
+    else{return false;}//old browsers
+    
+    return {
+        x : X,
+        y : Y
+    };
+}
+
+function updateTDBar(value) {
+    var tdBar = $('tdBarDragger');
+ 	var pctg = (1-(value-distChartXMax)/(distChartXMin - distChartXMax));
+  	if (pctg > 1 || pctg < 0) {
+        tdBar.hide();
+    } else {
+        tdBar.show();
+        var padding = (distChartXMin !== tdMaximum || distChartXMax !== 1) ? 0 : 0.001;
+        var xval = distChart.plotLeft + padding*distChart.plotWidth + pctg*(1-2*padding)*distChart.plotWidth;
+        tdBar.style.left = xval - 3 + 'px';
+        tdBar.style.top = distChart.plotTop + 'px';
+        tdBar.style.height = distChart.plotHeight + 'px'; 
+    }
+}
+
+function updateTofBar(tofvalue) {
+    if(tofvalue > tdMaximum)  // debugging 
+        console.log("moveTofBar: tofvalue (" + tofvalue + ") was greater than tdMaximum: debug this");
+    var tofBar = $('tofBarDragger');
+ 	var pctg = (1-(tofvalue-distChartXMax)/(distChartXMin - distChartXMax));
+  	if (isDeltaVMode() || pctg > 1 || pctg < 0) {
+        tofBar.hide();
+    } else {
+        tofBar.show();
+        var padding = (distChartXMin !== tdMaximum || distChartXMax !== 1) ? 0 : 0.001;
+        var xval = distChart.plotLeft + padding*distChart.plotWidth + pctg*(1-2*padding)*distChart.plotWidth;
+        tofBar.style.left = xval - 3 + 'px';
+        tofBar.style.top = distChart.plotTop + 'px';
+        tofBar.style.height = distChart.plotHeight + 'px'; 
+    }
+}
+
+function updateLaunchDragger(value) {
+    var launchDragger = $('launchDragger');
+  	if (isDeltaVMode()) {
+        launchDragger.hide();
+    } else {
+        launchDragger.show();
+        var pos = getEarthPosAt(value);
+        var scalex = (orbitChart.plotWidth/(2*orbit.axisWidth));
+        var scaley = (orbitChart.plotHeight/(2*orbit.axisWidth));
+        var xval = orbitChart.plotLeft + orbitChart.plotWidth/2 + pos.x * scalex;
+        var yval = orbitChart.plotTop + orbitChart.plotHeight/2 - pos.y * scaley;
+        launchDragger.style.left = xval - launchDragger.getWidth()/2 + 'px';
+        launchDragger.style.top = yval - launchDragger.getHeight()/2 + 'px';
+    }
+}
+
+function updateObjectDragger(value) {
+    if (orbit.initialized) {
+        var objDragger = $('objectDragger');
+        var pos = getObjectPosAt(value);
+        var scalex = (orbitChart.plotWidth/(2*orbit.axisWidth));
+        var scaley = (orbitChart.plotHeight/(2*orbit.axisWidth));
+        var xval = orbitChart.plotLeft + orbitChart.plotWidth/2 + pos.x * scalex;
+        var yval = orbitChart.plotTop + orbitChart.plotHeight/2 - pos.y * scaley;
+        objDragger.style.left = xval - objDragger.getWidth()/2 + 'px';
+        objDragger.style.top = yval - objDragger.getHeight()/2 + 'px';
+    }
+}
+
+function updateTestBox(x,y) {
+    var testBox = $('testBox');
+    testBox.style.left = x - testBox.getWidth()/2 + 'px';
+    testBox.style.top = y - testBox.getHeight()/2 + 'px';
+}
+
+function distMouseDown(e) {
+    if (!e) var e = window.event;
+    var pos = xyFromEvent(e);
+    var target = targetFromEvent(e);
+    if (target === $('tofBarDragger')) {
+        draggingTof = true;
+        draggingTD = false;
+        tofDragOffset = pos.x - target.offsetLeft;
+    } else if (target === $('tdBarDragger')) {
+        draggingTD = true;
+        draggingTof = false;
+        tdDragOffset = pos.x - target.offsetLeft;
+    } else { 
+        return; 
+    }
+    
+    rememberMouseMove = document.onmousemove;
+    document.onmousemove = distMouseMoves;
+    rememberMouseUp = document.onmouseup;
+    document.onmouseup = globalMouseUp;
+    stopPropagation(e);
+    try {
+        e.stop();
+    } catch (err) 
+    {}; // IE 8 doesn't support stop();
+}
+
+function distMouseMoves(e) {
+    var isTofBar = false;
+    
+    if (!draggingTD && !draggingTof) 
+        return;
+    var pos = xyFromEvent(e);
+    if (!isDeltaVMode() && draggingTof) {
+        var dragBar =  $('tofBarDragger');
+        var tdBar = $('tdBarDragger');
+        var left = (pos.x-tofDragOffset);
+        isTofBar = true;
+    } else if (draggingTD) {
+        var dragBar =  $('tdBarDragger');        
+        var left = (pos.x-tdDragOffset);
+    } else { return; }
+    
+    stopPropagation(e);
+    try {
+        e.stop();
+    } catch (err) 
+    {}; // IE 8 doesn't support stop();
+   if (left < distChart.plotLeft) {
+        left = distChart.plotLeft;
+    } else if (isTofBar && left > tdBar.offsetLeft) {
+        left =  tdBar.offsetLeft;
+    } else if (left > distChart.plotLeft + distChart.plotWidth - dragBar.offsetWidth) 
+        left = distChart.plotLeft + distChart.plotWidth - dragBar.offsetWidth;
+    dragBar.style.left = left + 'px';
+    var pctg = (left + dragBar.offsetWidth/2 - distChart.plotLeft) / (distChart.plotWidth);
+    pctg = Math.max(0,Math.min(1.0,pctg)); // bound to [0,1]
+    var newVal = distChartXMin + pctg * (distChartXMax - distChartXMin); 
+//    newVal *= convertTime(jQuery('#tdTime option:selected').text(), "days");  // convert to days 
+    if (isTofBar) {
+        newVal -= getTdDays();
+        setTofValueWithUpdate(newVal);
+    } else {
+        setTdValueWithUpdate(newVal);
+    }
+}
+
+function orbitMouseDown(e) {
+    if (!e) var e = window.event;
+    var pos = xyFromEvent(e);
+    var target = targetFromEvent(e);
+    var boundBox = target.getBoundingClientRect();
+    orbitDragOffset.x = pos.x - boundBox.left;
+    orbitDragOffset.y = pos.y - boundBox.top;
+    if (target === $('objectDragger')) {
+        draggingObject = true;
+        draggingLaunch = false;
+    } else if (target === $('launchDragger')) {
+        draggingObject = false;
+        draggingLaunch = true;
+    } else { 
+        return; 
+    }
+    
+    rememberMouseMove = document.onmousemove;
+    document.onmousemove = orbitMouseMoves;
+    rememberMouseUp = document.onmouseup;
+    document.onmouseup = globalMouseUp;
+    stopPropagation(e);
+    try {
+        e.stop();
+    } catch (err) 
+    {}; // IE 8 doesn't support stop();
+}
+
+function orbitMouseMoves(e) {
+ //   var isLaunchDragger = false;
+    
+    var orbitContainer = $('orbit-chart-container');
+    if (!draggingObject && !draggingLaunch) {
+        return;
+    }
+    var pos = xyFromEvent(e);  // in terms of the parent
+    var orbitBoundBox = orbitContainer.getBoundingClientRect();
+
+    if (!isDeltaVMode() && draggingLaunch) {
+        var dragBox =  $('launchDragger');
+    } else if (draggingObject) {
+        var dragBox =  $('objectDragger');        
+    } else { return; }
+
+    var centerx = orbitChart.plotLeft + orbitChart.plotWidth/2;
+    var centery = orbitChart.plotTop + orbitChart.plotHeight/2;
+    var xPos = pos.x - orbitBoundBox.left;
+    var yPos = pos.y - orbitBoundBox.top;
+    var newX = (xPos - orbitDragOffset.x + dragBox.offsetWidth/2) - centerx;
+    var newY = centery - (yPos - orbitDragOffset.y + dragBox.offsetHeight/2);
+    stopPropagation(e);
+    try {
+        e.stop();
+    } catch (err) 
+    {}; // IE 8 doesn't support stop();
+   
+    var newAng = Math.atan2(newY, newX);                            // determine new angle
+    if (isNaN(newAng)) {                                           // if something went wrong
+        console.log("Something went wrong: newAng is NaN");
+        return;
+    }
+    var startDay = getTdDays();                                     // get the current day
+    if (draggingLaunch)
+        startDay += getTofDays() ;
+    var newDay = getDayfromNewAngle(startDay, newAng, draggingLaunch);    // determine the date the new angle represents
+    if (newDay === -1) // error
+        return;
+    newDay = Math.round(newDay);
+    
+    if (draggingLaunch) {
+        newDay -= getTdDays();
+        setTofValueWithUpdate(newDay);
+        updateLaunchDragger(newDay);
+    } else {
+        setTdValueWithUpdate(newDay);
+        updateObjectDragger(newDay);
+    }
+}
+
+function globalMouseUp(e) {
+    if (!draggingTD && !draggingTof && !draggingObject && !draggingLaunch)
+        return;
+    if (draggingTD || draggingTof)
+        distMouseMoves(e);
+    if (draggingObject || draggingLaunch)
+        orbitMouseMoves(e);
+    document.onmouseup = rememberMouseUp;
+    document.onmousemove = rememberMouseMove;
+    draggingTD = false;
+    draggingTof = false;
+    draggingObject = false;
+    draggingLaunch = false;
+//    $('tdBarDragger').mousemove = null;
+}
+
+var loadingCount = 0;
+
+function showLoadingOverlay(show) {
+    var lo = jQuery('#loadingOverlay');
+    var loText = jQuery('#loadingCenterOverlay');
+    if (show === 'undefined') {
+        lo.hide();
+        loText.hide();
+    } else {
+        if (show) {
+            lo.show();
+            loText.show();
+            loadingCount = 0;
+            checkForLoadComplete();
+        }  else {
+            lo.hide();
+            loText.hide();
+        }
+    }
+}
+
+
+function checkForLoadComplete() {
+    if (bplane && bplane.valid && orbit  && orbit.initialized && distDataValid) {
+        showLoadingOverlay(false);
+        distChart.zoomOut();
+    }
+    else {
+        if (loadingCount > 150) {  
+            alert("Data was not properly loaded");
+            loadingCount = 0;
+            showLoadingOverlay(false);
+            distChart.zoomOut();
+        } else {
+            loadingCount++;
+            setTimeout(function() { checkForLoadComplete(); }, 200);  // Every .2 seconds check if the loading is done
+        }
+    }
+}
+
+function resizeObjectOverlay() {
+    var obCh = $('objectcharacteristics');
+    var obOverlay = $('objectOverlay');
+    var yOffset = 0;
+    var xOffset = 0;
+    if (windowsInternetExplorer && (browserVersion >= 5 && browserVersion <= 7)) { // kludge for IE 5-7 (compatibility mode is 7)
+        var pc = $('page-content');
+        yOffset = pc.offsetTop;
+        xOffset = pc.offsetLeft;
+// debug        console.log("browserVersion = " + browserVersion + "   offset=("+xOffset+","+yOffset+")");
+    }
+    obOverlay.style.top = obCh.offsetTop + yOffset + 'px';
+    obOverlay.style.left = obCh.offsetLeft + xOffset +'px';
+    obOverlay.style.width = obCh.offsetWidth + 'px';
+    obOverlay.style.height = obCh.offsetHeight + 'px';    
+}
+
+function enableObjectInput(enable) {
+    var obCh = $('objectcharacteristics');
+    var obOverlay = $('objectOverlay');
+        
+    if (enable)
+        obOverlay.hide();
+    else {
+        obOverlay.show();
+    }
+}
+
+
+function keepRetrying(what, until, timeout) {
+	if (!eval(until)) {
+		setTimeout(function() {
+			keepRetrying(what, until, timeout);
+		}, timeout);
+	}
+	else
+		eval(what);
+}
+
+var testthis = false;
+var distChartRendered = false;
+var distChartMasterRendered = false;
+var orbitChartRendered = false;
+var bplaneChartRendered = false;
+var bplaneChartIsRendering = false;
+function resizePage() {
+	if (!windowsInternetExplorer || browserVersion > 6)
+		$('firsttablink').style.marginLeft = (($('tabs').getWidth() - $('firsttablink').getWidth() - $('secondtablink').getWidth()) / 2) + "px";
+	else
+		$('firsttablink').style.marginLeft = (($('tabs').getWidth() - $('firsttablink').getWidth() - $('secondtablink').getWidth()) / 4) + "px";
+	var totalWidth = $('page-content').getWidth();
+	$('left-column-top').style.height = "";
+	var leftColumnTopHeight = Math.max(300, $('left-column-top').getHeight() + 15);
+	$('left-column-top').style.height = $('left-column-top').getHeight() + 15 + "px";
+	$('right-column-top').style.height = leftColumnTopHeight + "px";
+	$('right-column-top').style.width = (totalWidth - $('left-column-top').getWidth()) - 30 + "px";
+	$('dist-chart-container').style.height = (leftColumnTopHeight - 80) + "px";
+	$('dist-chart-container').style.width = totalWidth - $('left-column-top').getWidth() - 30 + "px";
+	$('dist-chart-master-container').style.top = (leftColumnTopHeight - 100) + "px";
+	$('dist-chart-master-container').style.width = totalWidth - $('left-column-top').getWidth() - 30 + "px";
+    distChart.setSize($('dist-chart-container').getWidth(), leftColumnTopHeight - 80, false);
+	keepRetrying("distChart.redraw()", "!processingDist && distChartRendered", 500);
+	distChartMaster.setSize($('dist-chart-master-container').getWidth(), $('dist-chart-master-container').getHeight(), false);
+	keepRetrying("distChartMaster.redraw()", "!processingDist && distChartMasterRendered", 1000);
+	var newWidth;
+    var resultsBoxWidth = $('middle-column-bottom').getWidth() + 4;
+	var newBottomWidth;
+    newWidth = totalWidth / 2 - 10 - resultsBoxWidth/2;
+	newBottomWidth = newWidth;
+    $('left-column-bottom').style.width = newWidth + "px";
+    $('right-column-bottom').style.width = newWidth + "px";
+    $('orbit-chart-container').style.height = $('orbit-chart-container').getWidth() + "px";
+    $('bplane-chart-container').style.height = $('bplane-chart-container').getWidth() + "px";
+	if (orbitChartRendered) {
+		var aspectDiff = orbitChart.plotLeft + orbitChart.options.chart.marginRight - orbitChart.plotTop - orbitChart.options.chart.marginBottom;
+	        if (aspectDiff > 0)
+		        orbitChart.setSize(newWidth, newWidth-aspectDiff, false);
+	        else
+	                orbitChart.setSize(newWidth+aspectDiff, newWidth, false);
+	}
+	if (bplaneChartRendered) {
+	        var aspectDiff = bplaneChart.plotLeft + bplaneChart.options.chart.marginRight - bplaneChart.plotTop - bplaneChart.options.chart.marginBottom;
+	        if (aspectDiff > 0)
+	                bplaneChart.setSize(newWidth, newWidth-aspectDiff, false);
+	        else
+	        	bplaneChart.setSize(newWidth+aspectDiff, newWidth, false);
+	}
+    resizeObjectOverlay();
+    resizePlotImage();
+    updateLaunchDragger(getTdDays() + getTofDays());
+    updateObjectDragger(getTdDays()); 
+}
+
+function cross(a, b) {
+	return([a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]]);
+}
+
+function norm(x) {
+	return Math.sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+}
+
+function div(x, y) {
+	return [x[0]/y, x[1]/y, x[2]/y];
+}
+
+function f(xx, yy) {
+	x = xx;
+	y = yy;
+	var ff = x*x-y*y;
+	return(ff);
+}
+
+function checkDates() {
+    var td = getTdDays();
+    if (td > tdMaximum -7) {
+        td =  Math.floor(tdMaximum / 2);
+        setTdValue(td);
+    }
+    if (!isDeltaVMode()) {
+        var tof = getTofDays();
+        if (tof + td > tdMaximum - 7) {
+            td =  Math.floor(tdMaximum / 2);
+            tof = Math.floor(Math.min(tdMaximum - getTdDays(), tofMaximum/2));
+            setTdValue(td);
+            setTofValue(tof);
+        }        
+    }
+    oldTd = td;
+    oldTof = tof;
+}
+
+function invalidateLoadedData() {
+    if (bplane) bplane.valid = false;
+    if (orbit) orbit.initialized = false;
+    distDataValid = false;
+    showLoadingOverlay(true);
+}
+
+function resetBPlaneZoomExtremes() {
+//    var currBP = getCurrentBPIdx();
+    var tbi = bplane.getTBI();
+    var khZeta = bplane.getKeyHoleZetas();
+    var chord = bplane.getChordLen();
+    var xi = bplane.getXi();
+    var zeta = bplane.getZeta();
+    var i;
+    var centerX, centerY;
+    var halfBounds = 0;
+    
+    bpLastExtremes.length = 0; // clear the array
+    bpLastExtremes.push({
+        xMin : -4,
+        xMax : 4,
+        yMin : -4,
+        yMax : 4
+    });
+    if (chord) {
+       len = chord.length;
+       for (var i = 1; i < len; i++) {
+            if (chord && chord[i] && xi && xi[i] && zeta && zeta[i]) {
+                centerX = xi[i] / re;
+                centerY = zeta[i] / re;
+                halfBounds = chord[i] * 2 / re;
+                bplaneXMin = centerX - halfBounds;
+                bplaneXMax = centerX + halfBounds;
+                bplaneYMin = centerY - halfBounds;
+                bplaneYMax = centerY + halfBounds;
+                bpLastExtremes.push({
+                    xMin : bplaneXMin,
+                    xMax : bplaneXMax,
+                    yMin : bplaneYMin,
+                    yMax : bplaneYMax
+                });
+            } else {
+                bpLastExtremes.push({
+                    xMin : -4,
+                    xMax : 4,
+                    yMin : -4,
+                    yMax : 4
+                });            
+            }
+        }
+    }
+}
+
+function resetCharts() {
+	disableSliderEvents = true;
+    resetBPlaneZoomExtremes();
+    restoreFieldsFromCurrentState();
+    invalidateLoadedData();
+	updateDist(jQuery('#object').val(), getTdDays());
+	updateOrbits(jQuery('#object').val(), getTdDays());
+	clearCharts(true);
+    checkDates();
+    updateTDBar(getTdDays());
+    updateObjectDragger(getTdDays());
+    updateTofBar(getTdDays() + getTofDays());
+    updateLaunchDragger(getTdDays() + getTofDays());
+    distChart.zoomOut();
+	disableSliderEvents = false;
+}
+
+function setDeltaValues(va, vc, vn) {
+   	disableSliderEvents = true;
+	deltavaSlider.setValue(va);
+	deltavcSlider.setValue(vc);
+	deltavnSlider.setValue(vn);
+	$('deltava').setValue(va.toFixed(3));
+	$('deltavc').setValue(vc.toFixed(3));
+	$('deltavn').setValue(vn.toFixed(3));
+	disableSliderEvents = false;
+	$('deltavaout').update(va.toFixed(3));
+	$('deltavcout').update(vc.toFixed(3));
+	$('deltavnout').update(vn.toFixed(3));
+}
+
+function setInternalValuesToDefaults() {
+    setDeltaValues(0,0,0);
+}
+
+function clearCharts(reset) {
+	if (isDeltaVMode())
+		updateBPlane(jQuery('#object').val(), getTdDays(), -1, reset);
+	else
+		updateBPlane(jQuery('#object').val(), getTdDays(), getTofDays(), reset);
+}
+
+var prevTdVal = 0;
+function moveTdLine(value) {
+    var useValue = value;
+	if (value !== undefined && value !== 0)
+		prevTdVal = value;
+	else {
+        if (prevTdVal === 0)
+            return;
+        else
+    		useValue = prevTdVal;
+    }
+    updateTDBar(useValue);
+    updateObjectDragger(useValue);
+	moveTdMasterLine();
+    updateBPMarkers(useValue);
+	var pctg = (1-(useValue-distChartXMax)/(distChartXMin - distChartXMax));
+	if (distChartTdTitle) {
+		distChartTdTitle.destroy();
+		distChartTdTitle = null;
+		distChartTdTitleRect.destroy();
+		distChartTdTitleRect = null;
+	}
+	if (pctg > 1 || pctg < 0) {
+		if (distChartTdPath) {
+			distChartTdPath.destroy();
+			distChartTdPath = null;
+		}
+		return;
+	}
+	if (distChartXMin != tdMaximum || distChartXMax != 1)
+		var padding = 0;
+	else
+		var padding = 0.001;
+	var xval = distChart.plotLeft + padding*distChart.plotWidth + pctg*(1-2*padding)*distChart.plotWidth;
+	distChartTdTitle = distChart.renderer.text("D", xval, distChart.plotTop-1).attr({
+		align: 'center',
+		zIndex: 6}).add();
+	var box = distChartTdTitle.getBBox();
+	distChartTdTitleRect = distChart.renderer.rect(box.x, box.y+2, box.width, box.height-4, 0).attr({
+		fill: '#FFFFFF',
+		zIndex: 5}).add();
+	if (distChartTdPath == null)
+		distChartTdPath = distChart.renderer.path(['M', xval, distChart.plotTop + distChart.plotHeight, 'L', xval, distChart.plotTop]).attr({
+			'stroke-width': 1,
+			'stroke-dasharray': '5,5,5',
+			'dashstyle': 'dash',
+			stroke: 'black',
+                        zIndex: 10}).add();
+	else
+		distChartTdPath.attr({
+			d: ['M', xval, distChart.plotTop + distChart.plotHeight, 'L', xval, distChart.plotTop]
+		});
+    drawBPlaneElements();
+}
+
+function moveTdMasterLine() {
+        var value = prevTdVal;
+        updateMasterBPMarkers(value);
+        var pctg = (1-(value-1)/(tdMaximum - 1));
+        if (distChartTdMasterTitle) {
+                distChartTdMasterTitle.destroy();
+                distChartTdMasterTitle = null;
+                distChartTdMasterTitleRect.destroy();
+                distChartTdMasterTitleRect = null;
+        }
+        if (pctg > 1 || pctg < 0) {
+                if (distChartTdMasterPath) {
+                        distChartTdMasterPath.destroy();
+                        distChartTdMasterPath = null;
+                }
+                return;
+        }
+        var padding = 0.001;
+        var xval = distChartMaster.plotLeft + padding*distChartMaster.plotWidth + pctg*(1-2*padding)*distChartMaster.plotWidth;
+        distChartTdMasterTitle = distChartMaster.renderer.text("D", xval, distChartMaster.plotTop).attr({
+                align: 'center',
+                zIndex: 6}).add();
+        var box = distChartTdMasterTitle.getBBox();
+        distChartTdMasterTitleRect = distChartMaster.renderer.rect(box.x, box.y+2, box.width, box.height-4, 0).attr({
+                fill: '#FFFFFF',
+                zIndex: 5}).add();
+        if (distChartTdMasterPath == null)
+                distChartTdMasterPath = distChartMaster.renderer.path(['M', xval, distChartMaster.plotTop + distChartMaster.plotHeight, 'L', xval, distChartMaster.plotTop]).attr({
+                        'stroke-width': 1,
+                        'stroke-dasharray': '5,5,5',
+                        'dashstyle': 'dash',
+                        stroke: 'black'}).add();
+        else
+                distChartTdMasterPath.attr({
+                        d: ['M', xval, distChartMaster.plotTop + distChartMaster.plotHeight, 'L', xval, distChartMaster.plotTop]
+                });
+}
+
+var prevTofVal = 0;
+function moveTofLine(tofvalue) {
+    if(tofvalue > tdMaximum)  // debugging 
+        console.log("moveTofLine: tofvalue (" + tofvalue + ") was greater than tdMaximum: debug this");
+	if (tofvalue !== undefined && tofvalue !==0)
+		prevTofVal = tofvalue;
+	else {
+        if (prevTofVal ===0)
+            return;
+        else
+    		tofvalue = getTdDays() + getTofDays();
+    }
+    updateTofBar(tofvalue);
+    updateLaunchDragger(tofvalue);
+	moveTofMasterLine();
+	var pctg = (1-(tofvalue-distChartXMax)/(distChartXMin - distChartXMax));
+	if (distChartTofTitle) {
+		distChartTofTitle.destroy();
+		distChartTofTitle = null;
+		distChartTofTitleRect.destroy();
+		distChartTofTitleRect = null;
+	}
+	if (isDeltaVMode() || pctg > 1 || pctg < 0) {
+		if (distChartTofPath) {
+			distChartTofPath.destroy();
+			distChartTofPath = null;
+		}
+		return;
+	}
+	if (distChartXMin != tdMaximum || distChartXMax != 1)
+		var padding = 0;
+	else
+	        var padding = 0.001;
+        var xval = distChart.plotLeft + padding*distChart.plotWidth + pctg*(1-2*padding)*distChart.plotWidth;
+	distChartTofTitle = distChart.renderer.text("L", xval, distChart.plotTop-1).attr({
+            align: 'center',
+		    zIndex: 4}).add();
+	var box = distChartTofTitle.getBBox();
+        distChartTofTitleRect = distChart.renderer.rect(box.x, box.y+2, box.width, box.height-4, 0).attr({
+		    fill: '#FFFFFF',
+            zIndex: 3}).add();
+	if (distChartTofPath == null)
+		distChartTofPath = distChart.renderer.path(['M', xval, distChart.plotTop + distChart.plotHeight, 'L', xval, distChart.plotTop]).attr({
+			'stroke-width': 1,
+			'stroke-dasharray': '5,5,5',
+			'dashstyle': 'dash',
+			stroke: 'red'}).add();
+	else
+		distChartTofPath.attr({
+			d: ['M', xval, distChart.plotTop + distChart.plotHeight, 'L', xval, distChart.plotTop]
+		});
+}
+
+function moveTofMasterLine() {
+        var value = prevTofVal;
+        var pctg = (1-(value-1)/(tdMaximum - 1));
+        if (distChartTofMasterTitle) {
+                distChartTofMasterTitle.destroy();
+                distChartTofMasterTitle = null;
+                distChartTofMasterTitleRect.destroy();
+                distChartTofMasterTitleRect = null;
+        }
+        if (isDeltaVMode() || pctg > 1 || pctg < 0) {
+                if (distChartTofMasterPath) {
+                        distChartTofMasterPath.destroy();
+                        distChartTofMasterPath = null;
+                }
+                return;
+        }
+        var padding = 0.001;
+        var xval = distChartMaster.plotLeft + padding*distChartMaster.plotWidth + pctg*(1-2*padding)*distChartMaster.plotWidth;
+        distChartTofMasterTitle = distChartMaster.renderer.text("L", xval, distChartMaster.plotTop).attr({
+                zIndex: 4}).add();
+        var box = distChartTofMasterTitle.getBBox();
+        distChartTofMasterTitleRect = distChartMaster.renderer.rect(box.x, box.y+2, box.width, box.height-4, 0).attr({
+                fill: '#FFFFFF',
+                zIndex: 3}).add();
+        if (distChartTofMasterPath == null)
+                distChartTofMasterPath = distChartMaster.renderer.path(['M', xval, distChartMaster.plotTop + distChartMaster.plotHeight, 'L', xval, distChartMaster.plotTop]).attr({
+                        'stroke-width': 1,
+                        'stroke-dasharray': '5,5,5',
+                        'dashstyle': 'dash',
+                        stroke: 'red'}).add();
+        else
+                distChartTofMasterPath.attr({
+                        d: ['M', xval, distChartMaster.plotTop + distChartMaster.plotHeight, 'L', xval, distChartMaster.plotTop]
+                });
+}
+
+function vehicleChanged() {
+    moveBPlanePt();
+}
+
+function moveBPlanePt() {
+	if (isDeltaVMode()) {
+		deltaVChange($('deltava').getValue(), $('deltavc').getValue(), $('deltavn').getValue());
+	}
+	else if ($('objectDiameter').getValue() > 0) {
+		lambertChange($('objectDiameter').getValue(), getObjectDensity(), computeDeliveredMass(), getBeta());
+		$('objectmass').update(((4/3 * Math.PI * Math.pow($('objectDiameter').getValue()/2, 3))*getObjectDensity()*Math.pow(10, 12)).toExponential(3));
+	}
+	else {
+		$('deltavaout').update("0");
+		$('deltavcout').update("0");
+		$('deltavnout').update("0");
+		$('objectmass').update("0");
+	}
+}
+
+function setDefaultDeltas() {
+	$('tdDelta').setValue("10");
+	$('deltavaSliderDelta').setValue("1");
+	$('deltavcSliderDelta').setValue("10");
+	$('deltavnSliderDelta').setValue("10");
+	$('tofDelta').setValue("10");
+}
+
+function handleKeyPressed(event) {
+    var sourceEl = {};
+    if (event.keyCode === 13) {
+        var target = targetFromEvent(event);
+        sourceEl = $(target.id);
+        sourceEl.onchange(); 
+        return false;
+    }
+    return true;
+}
+
+
+

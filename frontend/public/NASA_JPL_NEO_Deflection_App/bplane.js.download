@@ -1,0 +1,1283 @@
+/*
+ * Class: BPlane
+ * Description:
+ * Author: Eyal Amir
+ * Version 1.0
+ */
+var BPlane = Class.create({
+	initialize: function() {
+        this.valid          = false;
+		this.tbi			= null;
+		this.vinf			= null;
+		this.xi				= null;
+		this.zeta			= null;
+        this.chordLen        = null;
+        this.keyholeZetas   = null;
+		this.fpa			= NaN;
+		this.rx				= NaN;
+		this.ry				= NaN;
+		this.rz				= NaN;
+		this.vx				= NaN;
+		this.vy				= NaN;
+		this.vz				= NaN;
+		this.poscvel		= null;
+		this.lineOfNodes	= NaN;
+		this.revs			= NaN;
+		this.c3				= NaN;
+		this.vr_x			= NaN;
+		this.vr_y			= NaN;
+		this.vr_z			= NaN;
+		this.transferSMA    = NaN;
+		this.transferEcc    = NaN;
+		this.transferInc    = NaN;
+		this.transferRAAN   = NaN;
+		this.transferArgPer = NaN;
+		this.transferTA     = NaN;
+		this.transferPeriod = NaN;
+		this.bplaneRequest	= null;
+		this.afterDataRetrieval	= function(o) {};
+		this.afterLONDataRetrieval	= function(o) {};
+	},
+
+	initializeFromXML: function(xml, reset) {
+		var result = xml.getElementsByTagName("result")[0];
+        var maxNumDays = parseInt($X(result.getElementsByTagName("maxnumdays")[0]));
+        if (maxNumDays > daysIn30Years)
+            maxNumDays = daysIn30Years;
+        tdMaximum = maxNumDays;
+        distChartXMinLoaded = maxNumDays;
+        var i;
+        var len = 0; 
+        var len2 = 0;
+        var val;
+		if (reset) {
+			this.tbi = new Array();
+			var tbiXml = result.getElementsByTagName("tbi");
+            len = tbiXml.length;
+			for (i=0; i < len; i++) {
+                val = parseFloat($X(tbiXml[i]).strip());
+                if (val < tdMaximum)    
+    				this.tbi[parseInt(tbiXml[i].getAttribute("bplane"))] = val;
+			}
+            var maxLen = this.tbi.length;  // may be less than the number of tbi elements if some of them are beyond the maximum displayed years
+			this.vinf = new Array();
+			var vinfXml = result.getElementsByTagName("vinf");
+            len = vinfXml.length;
+			for (i=0; i < len && i < maxLen; i++) {
+				this.vinf[parseInt(vinfXml[i].getAttribute("bplane"))] = parseFloat($X(vinfXml[i]).strip());
+			}
+			this.xi = new Array();
+			var xiXml = result.getElementsByTagName("xi");
+            len = xiXml.length;
+			for (i=0; i < len && i < maxLen; i++) {
+				this.xi[parseInt(xiXml[i].getAttribute("bplane"))] = parseFloat($X(xiXml[i]).strip());
+			}
+			this.zeta = new Array();
+			var zetaXml = result.getElementsByTagName("zeta");
+            len = zetaXml.length;
+			for (i=0; i < len && i < maxLen; i++) {
+				this.zeta[parseInt(zetaXml[i].getAttribute("bplane"))] = parseFloat($X(zetaXml[i]).strip());
+			}
+            this.chordLen = new Array();
+			var chordXml = result.getElementsByTagName("cLen");
+            len = chordXml.length; 
+			for (i=0; i < len && i < maxLen; i++) {
+				this.chordLen[parseInt(chordXml[i].getAttribute("bplane"))] = parseFloat($X(chordXml[i]).strip());
+			}
+			var z1Xml = result.getElementsByTagName("zeta_1");
+			var z2Xml = result.getElementsByTagName("zeta_2");
+			var z3Xml = result.getElementsByTagName("zeta_3");
+			var z4Xml = result.getElementsByTagName("zeta_4");
+            len = Math.max(z1Xml.length,z2Xml.length,z3Xml.length,z4Xml.length);
+            if (len > 0) {
+                this.keyholeZetas = new Array();
+                for (i=1; i <= 4; i++) {
+                    this.keyholeZetas[i] = new Array();
+                    len2 = this.xi.length;
+                    for (j = 0; j < len2; j++)
+                        this.keyholeZetas[i][j] = 0;  // initialize to 0.  0 means don't draw the Valsecchi circle for this zeta
+                }
+                len2 = z1Xml.length;
+                for (i=0; i < len2; i++) {
+                    this.keyholeZetas[1][parseInt(z1Xml[i].getAttribute("bplane"))] = parseFloat($X(z1Xml[i]).strip());
+                }
+                len2 = z2Xml.length;
+                for (i=0; i < len2 ; i++) {
+                    this.keyholeZetas[2][parseInt(z2Xml[i].getAttribute("bplane"))] = parseFloat($X(z2Xml[i]).strip());
+                }
+                len2 = z3Xml.length;
+                for (i=0; i < len2; i++) {
+                    this.keyholeZetas[3][parseInt(z3Xml[i].getAttribute("bplane"))] = parseFloat($X(z3Xml[i]).strip());
+                }
+                len2 = z4Xml.length;
+                for (i=0; i < len2; i++) {
+                    this.keyholeZetas[4][parseInt(z4Xml[i].getAttribute("bplane"))] = parseFloat($X(z4Xml[i]).strip());
+                }
+            }
+        }
+		this.setFpa(parseFloat($X(result.getElementsByTagName("fpa")[0]).strip()));
+		this.setRX(parseFloat($X(result.getElementsByTagName("rx_obj")[0]).strip()));
+		this.setRY(parseFloat($X(result.getElementsByTagName("ry_obj")[0]).strip()));
+		this.setRZ(parseFloat($X(result.getElementsByTagName("rz_obj")[0]).strip()));
+		this.setVX(parseFloat($X(result.getElementsByTagName("vx_obj")[0]).strip()));
+		this.setVY(parseFloat($X(result.getElementsByTagName("vy_obj")[0]).strip()));
+		this.setVZ(parseFloat($X(result.getElementsByTagName("vz_obj")[0]).strip()));
+		var poscvel = new Array();
+		var poscvel00Xml = result.getElementsByTagName("poscvel00");
+        len = poscvel00Xml.length;
+		for (i=0; i < len; i++) {
+			if (parseInt(poscvel00Xml[i].getAttribute("bplane")) >= poscvel.length) {
+				poscvel[parseInt(poscvel00Xml[i].getAttribute("bplane"))] = new Array();
+				poscvel[parseInt(poscvel00Xml[i].getAttribute("bplane"))][0] = new Array();
+				poscvel[parseInt(poscvel00Xml[i].getAttribute("bplane"))][1] = new Array();
+			}
+			poscvel[parseInt(poscvel00Xml[i].getAttribute("bplane"))][0][0] = parseFloat($X(poscvel00Xml[i]).strip());
+		}
+		var poscvel01Xml = result.getElementsByTagName("poscvel01");
+        len = poscvel01Xml.length;
+		for (i=0; i < len; i++) {
+			poscvel[parseInt(poscvel01Xml[i].getAttribute("bplane"))][0][1] = parseFloat($X(poscvel01Xml[i]).strip());
+		}
+		var poscvel02Xml = result.getElementsByTagName("poscvel02");
+        len = poscvel02Xml.length;
+		for (i=0; i < len; i++) {
+			poscvel[parseInt(poscvel02Xml[i].getAttribute("bplane"))][0][2] = parseFloat($X(poscvel02Xml[i]).strip());
+		}
+		var poscvel10Xml = result.getElementsByTagName("poscvel10");
+        len = poscvel10Xml.length;
+		for (i=0; i < len; i++) {
+			poscvel[parseInt(poscvel10Xml[i].getAttribute("bplane"))][1][0] = parseFloat($X(poscvel10Xml[i]).strip());
+		}
+		var poscvel11Xml = result.getElementsByTagName("poscvel11");
+        len = poscvel11Xml.length;
+		for (i=0; i < len; i++) {
+            if (i<len) // sometimes the for loop goes beyond i<len (don't know why)
+    			poscvel[parseInt(poscvel11Xml[i].getAttribute("bplane"))][1][1] = parseFloat($X(poscvel11Xml[i]).strip());
+		}
+		var poscvel12Xml = result.getElementsByTagName("poscvel12");
+        len = poscvel12Xml.length;
+		for (i=0; i < len; i++) {
+            if (i<len)  // sometimes the for loop goes beyond i<len (don't know why)
+    			poscvel[parseInt(poscvel12Xml[i].getAttribute("bplane"))][1][2] = parseFloat($X(poscvel12Xml[i]).strip());
+		}
+		this.setPosCVel(poscvel);
+		var lineOfNodeElement = result.getElementsByTagName("lon")[0];
+		if (lineOfNodeElement) {
+			var lineOfNodes = new Array();
+			lineOfNodes[0] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("x1")[0])));
+			lineOfNodes[1] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("y1")[0])));
+			lineOfNodes[2] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("x2")[0])));
+			lineOfNodes[3] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("y2")[0])));
+			this.setLineOfNodes(lineOfNodes);
+		}
+		else if (reset)
+        {
+//            this.setLineOfNodes(null);
+        }
+		var revs = result.getElementsByTagName("revs");
+		if (revs[0])
+			this.setRevs(parseInt($X(revs[0]).strip()));
+		else
+			this.setRevs(-1);
+		var c3 = result.getElementsByTagName("c3");
+		if (c3[0])
+			this.setC3(parseFloat($X(c3[0]).strip()));
+		else
+			this.setC3(-1);
+		var vr_x = result.getElementsByTagName("vr_x");
+		if (vr_x[0])
+			this.setVR_X(parseFloat($X(vr_x[0]).strip()));
+		else
+			this.setVR_X(-1);
+		var vr_y = result.getElementsByTagName("vr_y");
+		if (vr_y[0])
+			this.setVR_Y(parseFloat($X(vr_y[0]).strip()));
+		else
+			this.setVR_Y(-1);
+		var vr_z = result.getElementsByTagName("vr_z");
+		if (vr_z[0])
+			this.setVR_Z(parseFloat($X(vr_z[0]).strip()));
+		else
+			this.setVR_Z(-1);
+		var transferOrbitElement = result.getElementsByTagName("transferOrbit")[0];
+		if (transferOrbitElement) {
+			this.transferSMA = (parseFloat($X(transferOrbitElement.getElementsByTagName("SMA")[0])));
+			this.transferEcc = (parseFloat($X(transferOrbitElement.getElementsByTagName("eccentricity")[0])));
+			this.transferInc = (parseFloat($X(transferOrbitElement.getElementsByTagName("inclination")[0])));
+			this.transferRAAN = (parseFloat($X(transferOrbitElement.getElementsByTagName("RAAN")[0])));
+			this.transferArgPer = (parseFloat($X(transferOrbitElement.getElementsByTagName("argPer")[0])));
+			this.transferTA = (parseFloat($X(transferOrbitElement.getElementsByTagName("trueAnomaly")[0])));
+			this.transferPeriod = (parseFloat($X(transferOrbitElement.getElementsByTagName("period")[0])));
+            updateOrbitsTd(getTdDays());
+           	$('transferSemiMajorAxis').update((this.transferSMA/au).toFixed(3));
+           	$('transferEccentricity').update(this.transferEcc.toFixed(3));
+           	$('transferInclination').update(this.transferInc.toFixed(3));
+           	$('transferLAN').update(this.transferRAAN.toFixed(3));
+           	$('transferArgOfPerihelion').update(this.transferArgPer.toFixed(3));
+           	$('transferTrueAnomaly').update(this.transferTA.toFixed(3));
+           	$('transferOrbitalPeriod').update((this.transferPeriod/(60*60*24*year)).toFixed(3));
+		}
+
+    },
+
+	initializeLONFromXML: function(xml) {
+		var result = xml.getElementsByTagName("result")[0];
+		var lineOfNodeElement = result.getElementsByTagName("lon")[0];
+		if (lineOfNodeElement) {
+			var lineOfNodes = new Array();
+			lineOfNodes[0] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("x1")[0])));
+			lineOfNodes[1] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("y1")[0])));
+			lineOfNodes[2] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("x2")[0])));
+			lineOfNodes[3] = (parseFloat($X(lineOfNodeElement.getElementsByTagName("y2")[0])));
+			this.setLineOfNodes(lineOfNodes);
+		}
+		else
+			this.setLineOfNodes(null);
+	},
+
+   	processData: function(reset, req) {
+		var reqXML = req.responseXML;
+		if (!reqXML) {
+			$('bplaneErrors').innerHTML = "<span style=\'font-size: large;\'>Query Returned No Results</span>";
+			$('bplaneErrors').show();
+			return;
+		}
+		this.initializeFromXML(reqXML, reset);
+		this.afterDataRetrieval(this);
+        this.valid = true;
+	},
+
+	processLONData: function(reset, req) {
+		var reqXML = req.responseXML;
+		if (!reqXML) {
+			$('bplaneErrors').innerHTML = "<span style=\'font-size: large;\'>Query Returned No Results</span>";
+			$('bplaneErrors').show();
+			return;
+		}
+		this.initializeLONFromXML(reqXML);
+		this.afterLONDataRetrieval(this);
+	},
+
+	getData: function(object, ind, tof, reset, nrevs) {
+		var url = cgi_loc + "/getBPlane.py?format=xml&object=" + object + "&ind=" + ind + "&tof=" + tof + "&reset=" + reset + "&nrevs=" + nrevs;
+        if (ind + tof > tdMaximum) { 
+            console.log("bplane.getData() tof+ind out of bounds at: " + url); 
+        }
+		this.bplaneRequest = new Ajax.Request(
+						url,
+						{
+							method: 'get',
+							onComplete: this.processData.bind(this, reset),
+							onException: function(req, exc) {
+                                showError(exc,'bplane.js:getData');
+							}
+						}
+				       );
+	},
+
+	getLONData: function(object, ind) {
+		var url = cgi_loc + "/getBPlane.py?format=xml&object=" + object + "&ind=" + ind + "&tof=130&reset=false";
+		this.bplaneRequest = new Ajax.Request(
+						url,
+						{
+							method: 'get',
+							onComplete: this.processLONData.bind(this, false),
+							onException: function(req, exc) {
+                                showError(exc,'bplane.js:getLONData');
+//							    alert('bplane.js: ' + exc + ' (' + exc.lineNo + ')');
+							}
+						}
+				       );
+	},
+
+
+	setTBI: function(tbi) {
+		this.tbi = tbi;
+	},
+
+	getTBI: function() {
+		return(this.tbi);
+	},
+
+	setVinf: function(vinf) {
+		this.vinf = vinf;
+	},
+
+	getVinf: function() {
+		return(this.vinf);
+	},
+            
+	setXi: function(xi) {
+		this.xi = xi;
+	},
+
+	getXi: function() {
+		return(this.xi);
+	},
+
+	setZeta: function(zeta) {
+		this.zeta = zeta;
+	},
+
+	getZeta: function() {
+		return(this.zeta);
+	},
+
+    setKeyHoleZetas: function (khZetas) {
+        this.keyholeZetas = khZetas;
+    },
+    
+    getKeyHoleZetas: function() {
+        return (this.keyholeZetas);
+    },
+
+    setChordLen: function (cLen) {
+        this.chordLen = cLen;
+    },
+            
+    getChordLen: function () {
+        return (this.chordLen);
+    },
+
+	setFpa: function(fpa) {
+		this.fpa = fpa;
+	},
+
+	getFpa: function() {
+		return(this.fpa);
+	},
+
+	setRX: function(rx) {
+		this.rx = rx;
+	},
+
+	getRX: function() {
+		return(this.rx);
+	},
+
+	setRY: function(ry) {
+		this.ry = ry;
+	},
+
+	getRY: function() {
+		return(this.ry);
+	},
+
+	setRZ: function(rz) {
+		this.rz = rz;
+	},
+
+	getRZ: function() {
+		return(this.rz);
+	},
+
+	setVX: function(vx) {
+		this.vx = vx;
+	},
+
+	getVX: function() {
+		return(this.vx);
+	},
+
+	setVY: function(vy) {
+		this.vy = vy;
+	},
+
+	getVY: function() {
+		return(this.vy);
+	},
+
+	setVZ: function(vz) {
+		this.vz = vz;
+	},
+
+	getVZ: function() {
+		return(this.vz);
+	},
+
+	setPosCVel: function(poscvel) {
+		this.poscvel = poscvel;
+	},
+
+	getPosCVel: function() {
+		return(this.poscvel);
+	},
+
+	setLineOfNodes: function(lon) {
+		this.lineOfNodes = lon;
+	},
+
+	getLineOfNodes: function() {
+		return(this.lineOfNodes);
+	},
+
+	setRevs: function(revs) {
+		this.revs = revs;
+	},
+
+	getRevs: function() {
+		return(this.revs);
+	},
+
+	setC3: function(c3) {
+		this.c3 = c3;
+	},
+
+	getC3: function() {
+		return(this.c3);
+	},
+
+	setVR_X: function(vr_x) {
+		this.vr_x = vr_x;
+	},
+
+	getVR_X: function() {
+		return(this.vr_x);
+	},
+
+	setVR_Y: function(vr_y) {
+		this.vr_y = vr_y;
+	},
+	
+	getVR_Y: function() {
+		return(this.vr_y);
+	},
+
+	setVR_Z: function(vr_z) {
+		this.vr_z = vr_z;
+	},
+	
+	getVR_Z: function() {
+		return(this.vr_z);
+	},
+
+    getVrel: function() {
+        return Math.sqrt(Math.pow(this.vr_x,2) + Math.pow(this.vr_y,2) + Math.pow(this.vr_z,2));
+    },
+
+    getMaxTransferOrbitExtent: function () {
+        if (!isDeltaVMode() && getTofDays()  >= 0 && !isNaN(this.transferSMA) && !isNaN(this.transferEcc) ) {
+            return this.transferSMA * (1 + this.transferEcc);
+        } else {
+            return 0;
+        }
+    }
+});
+
+function adotb(a, b)
+{
+	return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+}
+
+function amag(a)
+{
+	return Math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+}
+
+function axb(a, b)
+{
+	return [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
+}
+
+function computePhaseAngle(rx, ry, rz, vRx, vRy, vRz) {
+	var adR = [rx, ry, rz];
+	var adVr = [vRx, vRy, vRz];
+
+	/* Radius and Relative Velocity Magnitudes */
+	var dR = amag(adR);
+	var dVr = amag(adVr);
+    
+	/* Radius Vector dot Relative Velocity Vector */
+	var dRdotVr = adotb(adR, adVr);  
+    
+    return Math.acos(dRdotVr / (dR * dVr));
+}
+
+function currentPhaseAngleDeg() {
+   var pa =  computePhaseAngle(bplane.getRX(), bplane.getRY(), bplane.getRZ(), bplane.getVR_X(), bplane.getVR_Y(), bplane.getVR_Z());
+   return pa * 180 / Math.PI;
+}
+
+function setOrbitalElements(bplane)
+{
+	var mu_earth = 398600.4418;
+	var mu_sun = 132712440018;
+	var re = 6378.137;
+	var cr2d = 57.2957795130823209;
+	var km2au = 6.68458712267E-9;
+
+	var adR = [bplane.getRX(), bplane.getRY(), bplane.getRZ()];
+	var adV = [bplane.getVX(), bplane.getVY(), bplane.getVZ()];
+
+	/* Radius and Velocity Magnitudes */
+	var dR = amag(adR);
+	var dV = amag(adV);
+	/* Radius Vector dot Velocity Vector */
+	dRdotV = adotb(adR, adV);
+
+	/* Angular Momemtum; h = r x v */
+	var adH = axb(adR, adV);
+	var dH = amag( adH );
+	var adHhat = new Array();
+	var adEcc = new Array();
+	for (var ii=0; ii<3; ii++)
+	{
+		/* Angular Momentum Unit Vector */
+		adHhat[ii] = adH[ii]/dH;
+
+		/* Eccentricity Vector */
+		adEcc[ii] = 1.0/mu_sun*((dV*dV-mu_sun/dR)*adR[ii]-dRdotV*adV[ii]);
+	}
+
+	/* Eccentricity */
+	var dEcc = amag(adEcc);
+
+	/* Semi-Latus Rectum Vector */
+	var adP = axb(adH, adEcc);
+	/* Semi-Latus Rectum */
+	var dP = amag(adP);
+
+	/* Ascending Node Vector; n = zhat x hhat */
+	var adN = axb([0.0, 0.0, 1.0], adHhat);
+
+	/* Orbit ehat and phat unit vectors */
+	var adEhat = new Array();
+	var adPhat = new Array();
+	for (var ii=0; ii<3; ii++)
+	{
+		adEhat[ii] = adEcc[ii]/dEcc;
+		adPhat[ii] = adP[ii]/dP;
+	}
+
+	/* Semi-Major Axis */
+	var dSMA  = km2au*dR/(2.0-dR*dV*dV/mu_sun);
+	/* Inclination */
+	if ( adHhat[2] <= -1.0 )
+		var dInc = 180.0;
+	else if ( adHhat[2] >= 1.0 )
+		var dInc =   0.0;
+	else
+		var dInc  = Math.acos(adHhat[2])*cr2d;
+	/* Long. of Ascending Node (LAN) */
+	var dLAN = Math.atan2(adN[1],adN[0])*cr2d;
+	/* Argument of Perihelion */
+	var dArgP = -Math.atan2(adotb(adN,adPhat),adotb(adN,adEhat))*cr2d;
+	/* True Anomaly */
+	var dTStar = Math.atan2(adotb(adR,adPhat),adotb(adR,adEhat))*cr2d;
+    /* Period */
+    var dPeriod = (2*Math.PI*Math.sqrt(Math.pow(dSMA/km2au, 3)/mu_sun)/(60*60*24*year));
+
+	/* Enforce positive angles */
+	dLAN  = ( dLAN	< 0.0 ?  dLAN + 360.0 : dLAN  );
+	dArgP  = ( dArgP  < 0.0 ?  dArgP + 360.0 : dArgP  );
+	dTStar = ( dTStar < 0.0 ? dTStar + 360.0 : dTStar );
+
+	$('semiMajorAxis').update(dSMA.toFixed(3));
+	$('eccentricity').update(dEcc.toFixed(3));
+	$('inclination').update(dInc.toFixed(3));
+	$('lan').update(dLAN.toFixed(3));
+	$('argOfPerihelion').update(dArgP.toFixed(3));
+	$('trueAnomaly').update(dTStar.toFixed(3));
+	$('orbitalPeriod').update(dPeriod.toFixed(3));
+	drawLineOfNodes();
+	if (bplane.getC3() !== -1) {
+		if (bplane.getC3() === 29403)
+			$('earthDepartureC3').update("Infeasible");
+		else
+			$('earthDepartureC3').update(bplane.getC3().toFixed(3));
+	}
+}
+
+function setSeriesPointColors(bplaneIdx) {
+    var data = bplaneChart.series[bplaneIdx].data;
+    
+    var len = data.length;
+    for (var i=0; i < len; i++ ) { 
+        if (i === 0) {
+//            data[i].update({marker: {fillColor: '#FF0000', states: { hover: {fillColor: '#FF0000'}}}});
+        } else if (i === data.length-1) {
+//            data[i].update({marker: {fillColor: '#00FF00', states: { hover: {fillColor: '#00FF00'}}}});
+        } else {
+            data[i].update({marker: {fillColor: 'rgba(255, 255, 255, 0.0)', /*radius: 2.5,*/ lineColor: '#8000A0', lineWidth:1, states: { hover: {fillColor: null}}}});            
+        }
+    }  
+}
+
+function resetBPlanePlotPoints() {
+    var i, j;
+    var len;
+
+    var xiLen = bplane.getXi().length;
+    for (i = 0; i < xiLen; i++) {
+        len = bplaneChart.series[i].data.length;
+        for (j = len-2; j > 0; j--) {
+           bplaneChart.series[i].data[j].remove(); 
+        }
+    }
+    
+    updateBPlaneBounds(true);
+}
+
+function updateBPlaneBounds(setToMax) {
+	var mu_earth = 398600.4418;
+    var currBP = getCurrentBPIdx();
+    var tbi = bplane.getTBI();
+    var khZeta = bplane.getKeyHoleZetas();
+    var chord = bplane.getChordLen();
+    var xi = bplane.getXi();
+    var zeta = bplane.getZeta();
+    var i;
+    var centerX, centerY;
+    var halfBounds = 0;
+    var len = 0;
+    
+    if (!setToMax) {
+        bplaneZoomed = true;
+        if (currBP === "undefined") 
+            currBP = 0;
+        bplaneXMin = bpLastExtremes[currBP].xMin;
+        bplaneXMax = bpLastExtremes[currBP].xMax;
+        bplaneYMin = bpLastExtremes[currBP].yMin;
+        bplaneYMax = bpLastExtremes[currBP].yMax;
+    } else {
+        bplaneZoomed = false;
+
+        bplaneMaxAbsVal = new Array();
+        bplaneMaxAbsVal[0] = 4;
+        len = xi.length;
+        for (i = 0; i < len; i++) {
+            var smaTemp = -mu_earth/Math.pow(bplane.getVinf()[i], 2);
+            var ecc3Temp = 1 - 3*re/smaTemp;
+            var bc3Temp = -smaTemp*Math.sqrt(Math.pow(ecc3Temp, 2)-1);
+            bplaneMaxAbsVal[i] = Math.ceil(bc3Temp/re);
+            var maxAbsVal = Math.max(Math.abs(xi[i]/re), Math.abs(zeta[i]/re));
+            if (maxAbsVal > bplaneMaxAbsVal[i]) {
+                bplaneMaxAbsVal[i] = maxAbsVal * (1 + bplaneEdgeMargin);
+            }
+        }
+        bplaneXMin = -bplaneMaxAbsVal[currBP];
+        bplaneXMax = bplaneMaxAbsVal[currBP];
+        bplaneYMin = -bplaneMaxAbsVal[currBP];
+        bplaneYMax = bplaneMaxAbsVal[currBP];
+    }
+    var xVal = bplaneChart.series[currBP].xData;
+    var yVal = bplaneChart.series[currBP].yData;
+    var x = 0;
+    var y = 0;
+    var margin = bplaneEdgeMargin * (bplaneXMax-bplaneXMin);
+    len = xVal.length;
+    if (setToMax)
+        i = 0;
+    else
+        i =  len -1;
+    for ( ; i < len; i++) {
+        x = xVal[i];
+        y = yVal[i];       
+        if (x - margin < bplaneXMin  ) 
+            bplaneXMin = x - margin;
+        if (x + margin > bplaneXMax) 
+            bplaneXMax = x + margin;
+        if (y - margin < bplaneYMin) 
+            bplaneYMin = y - margin;
+        if (y + margin > bplaneYMax) 
+            bplaneYMax = y + margin;
+    }
+    var xCenter = (bplaneXMax + bplaneXMin) / 2;
+    var yCenter = (bplaneYMax + bplaneYMin) / 2;
+    var extent = Math.max(Math.abs(bplaneXMax - bplaneXMin),Math.abs(bplaneYMax - bplaneYMin)) / 2;
+    bplaneXMin = xCenter - extent;
+    bplaneXMax = xCenter + extent;
+    bplaneYMin = yCenter - extent;
+    bplaneYMax = yCenter + extent;
+
+    if (bplaneZoomed && bplaneChart.toolbar)
+        bplaneChart.toolbar.remove('zoom');
+    var selectionData = {xAxis: [], yAxis: []};
+    selectionData['xAxis'].push({
+        axis: bplaneChart.xAxis[0],
+        min: bplaneXMin,
+        max: bplaneXMax
+    });
+    selectionData['yAxis'].push({
+        axis: bplaneChart.yAxis[0],
+        min: bplaneYMin,
+        max: bplaneYMax
+    });
+    bplaneChart.zoom(selectionData);
+    bplaneChart.redraw();
+}
+
+var processingBPlane = false;
+var bc1, bc2, bc3;
+var re = 6378.137;
+function updateBPlane(object, td, tof, reset) {
+	if (processingBPlane)
+		return; // prevent from being called multiple times
+	processingBPlane = true;
+	$('bplaneErrors').hide();
+	if (reset) {
+        var len = bplaneChartElements.length;
+		for (var i = 0; i < len; ++i) {
+			bplaneChartElements[i].remove();
+		}
+		bplaneChartElements.length = 0;
+        len = bplaneChartMaxZoomElements.length;
+		for (var i = 0; i < len; ++i) {
+			bplaneChartMaxZoomElements[i].remove();
+		}
+		bplaneChartMaxZoomElements.length = 0;
+	}
+
+    bplane.afterLONDataRetrieval = function() {
+    	drawLineOfNodes();
+    };
+
+	bplane.afterDataRetrieval = function(bplane) {
+		setOrbitalElements(bplane);
+
+		if (!reset) {
+			moveBPlanePt();
+			processingBPlane = false;
+			return;
+		} 
+
+        var i = 0;
+		var bplaneIdx = 0;
+
+		var mu_earth = 398600.4418;
+		var mu_sun = 132712440018;
+		var cr2d = 57.2957795130823209;
+
+		var sma = -mu_earth/Math.pow(this.getVinf()[bplaneIdx], 2);
+		var b = Math.sqrt(Math.pow(this.getXi()[bplaneIdx], 2) + Math.pow(this.getZeta()[bplaneIdx], 2));
+		var ecc = Math.sqrt(Math.pow(b/sma, 2)+1);
+		var close_approach_dist = sma*(1-ecc);
+
+		var ecc1 = 1 - re/sma;
+		bc1 = -sma*Math.sqrt(Math.pow(ecc1, 2)-1);
+		var ecc2 = 1 - 2*re/sma;
+		bc2 = -sma*Math.sqrt(Math.pow(ecc2, 2)-1);
+		var ecc3 = 1 - 3*re/sma;
+		bc3 = -sma*Math.sqrt(Math.pow(ecc3, 2)-1);
+        var len = 0;
+
+		$('bdotzeta').update((this.getZeta()[bplaneIdx]/re).toFixed(3));
+		$('bdotxi').update((this.getXi()[bplaneIdx]/re).toFixed(3));
+		$('bmagnitude').update((b/re).toFixed(3));
+		$('captureradius').update((bc1/re).toFixed(3));
+		$('vinfinity').update(this.getVinf()[bplaneIdx].toFixed(3));
+		$('vrelative').update(this.getVrel().toFixed(3));
+		$('phaseangle').update(this.getVrel().toFixed(3));
+		$('closeapproachradius').update((close_approach_dist/re).toFixed(3));
+        var missDist = close_approach_dist/re - 1;
+        $('missdistance').update((missDist).toFixed(3));
+        if (missDist <= 0) {
+            jQuery('#missdistbox').hide();
+            jQuery('#impactbox').show();
+        } else {
+            jQuery('#missdistbox').show();
+            jQuery('#impactbox').hide();            
+        }
+            
+
+        updateBPlaneBounds(false);
+		drawBPlaneElements();
+
+        bplanePointData = new Array();
+		bplaneIndices = new Array();
+		bplaneLastPt = new Array();    
+
+		if (bplaneChart.series.length > this.getXi().length) {
+            var numToRemove = bplaneChart.series.length - this.getXi().length;
+            for (i = 0; i < numToRemove; i++) {
+                bplaneChart.series[bplaneChart.series.length - 1].remove();
+            }
+        }
+        len = this.getXi().length;
+		for (i = 0; i < len; i++) {
+			if (i > bplaneChart.series.length-1) {
+				bplaneChart.addSeries({name: "BP " + i, id: i, zIndex: 10});
+			}
+			bplaneLastPt[i] = [this.getXi()[i]/re, this.getZeta()[i]/re];
+			bplaneChart.series[i].setData([{x: this.getXi()[i]/re, y: this.getZeta()[i]/re, marker: {fillColor: '#FF0000', states: { hover: {fillColor: '#FF0000'}}}}]);
+			bplanePointData[i] = new Array();
+			bplanePointData[i][(this.getXi()[i]/re).toFixed(3) + " " + (this.getZeta()[i]/re).toFixed(3)] = [0, 0, 0];
+		}
+		bplaneIndices[0] = true;
+		bplaneChart.series[0].show();
+        len = this.getXi().length;
+		for (i = 1; i < len; i++) {
+			bplaneIndices[i] = false;
+            bplaneChart.series[i].hide();
+		}
+		drawBPlaneOutlier();
+		moveBPlanePt();
+		bplaneChartRendered = true;
+		processingBPlane = false;
+	};
+
+	bplane.getData(object, Math.round(td), Math.round(tof), reset, getNumRevs());
+    if (tof < 0) {
+        bplane.getLONData(object,Math.round(td),false);
+    }
+}
+
+function getPeriodAtD() {
+	var mu_sun = 132712440018;
+    var dToS = 3600 * 24;
+	var r = Math.sqrt(Math.pow(bplane.getRX(), 2) + Math.pow(bplane.getRY(), 2) + Math.pow(bplane.getRZ(), 2));
+	var v = Math.sqrt(Math.pow(bplane.getVX(), 2) + Math.pow(bplane.getVY(), 2) + Math.pow(bplane.getVZ(), 2));
+    var sma = r/(2-r*Math.pow(v, 2)/mu_sun);
+    var period = 2*Math.PI*Math.sqrt(Math.pow(sma, 3)/mu_sun); // in seconds 
+    
+    return (period / dToS); // in days
+}
+
+function deltaVChange(va, vc, vn, fromLambert) {
+	if (fromLambert===undefined) {
+		fromLambert = false;
+	}
+
+	var mu_sun = 132712440018;
+	var mu_earth = 398600.4418;
+	var period_helio = 5.680409453295424e+07;
+
+	var fpa = bplane.getFpa()*Math.PI/180;
+	var DeltaV_RTN = [ (va/1000000)*Math.sin(fpa) - (vc/1000000)*Math.cos(fpa),
+                       (va/1000000)*Math.cos(fpa) + (vc/1000000)*Math.sin(fpa),
+                        vn/1000000];
+
+	var DV_magnitude = Math.sqrt(Math.pow(va/1000000, 2) + Math.pow(vc/1000000, 2) + Math.pow(vn/1000000, 2));
+	var DV_alpha = Math.atan2(vc/1000000, va/1000000)*180/Math.PI;
+	var DV_delta = 0;
+	if (DV_magnitude !== 0)
+		DV_delta = Math.asin(vn/1000000/DV_magnitude)*180/Math.PI;
+
+	DV1 = DV_magnitude*Math.cos(DV_alpha*Math.PI/180)*Math.cos(DV_delta*Math.PI/180);
+	DV2 = DV_magnitude*Math.sin(DV_alpha*Math.PI/180)*Math.cos(DV_delta*Math.PI/180);
+	DV3 = DV_magnitude*Math.sin(DV_delta*Math.PI/180);
+
+	var r = Math.sqrt(Math.pow(bplane.getRX(), 2) + Math.pow(bplane.getRY(), 2) + Math.pow(bplane.getRZ(), 2));
+	var v = Math.sqrt(Math.pow(bplane.getVX(), 2) + Math.pow(bplane.getVY(), 2) + Math.pow(bplane.getVZ(), 2));
+	var v_tweaked = Math.sqrt(Math.pow(v + va/1000000, 2) + Math.pow(vc/1000000, 2) + Math.pow(vn/1000000, 2));
+    var sma = r/(2-r*Math.pow(v, 2)/mu_sun);
+	var sma_tweaked = r/(2-r*Math.pow(v_tweaked, 2)/mu_sun);
+    var period = 2*Math.PI*Math.sqrt(Math.pow(sma, 3)/mu_sun);
+	var period_tweaked = 2*Math.PI*Math.sqrt(Math.pow(sma_tweaked, 3)/mu_sun);
+	var deltaPeriod = period_tweaked - period;
+
+	var bdotzetaText = "";
+	var bdotxiText = "";
+	var bmagnitudeText = "";
+    var vinfinityText = "";
+    var vrelativeText = "";
+    var phaseangleText = "";
+    var periodText = "";
+    var deltaPeriodText = "";
+	var closeapproachradiusText = "";
+	var missdistanceText = "";
+    var currBP = getCurrentBPIdx();
+    var len = 0;
+
+    len = bplane.getXi().length;
+    for (var i = 0; i < len; i++) {
+		var bplaneIdx = i;
+		if (bplaneIdx > bplaneChart.series.length-1) {
+			bplaneChart.addSeries({name: "BP " + bplaneIdx, id: bplaneIdx, zIndex: 10, visible: false});
+
+			bplaneLastPt[bplaneIdx] = [bplane.getXi()[bplaneIdx]/re, bplane.getZeta()[bplaneIdx]/re];
+			bplaneChart.series[i].setData([{x: this.getXi()[i]/re, y: this.getZeta()[i]/re, marker: {fillColor: '#FF0000', states: { hover: {fillColor: '#FF0000'}}}}]);
+			bplaneIndices[bplaneIdx] = false;
+			bplanePointData[bplaneIdx] = new Array();
+			bplanePointData[bplaneIdx][(bplane.getXi()[bplaneIdx]/re).toFixed(3) + " " + (bplane.getZeta()[bplaneIdx]/re).toFixed(3)] = [0, 0, 0];
+			var smaTemp = -mu_earth/Math.pow(bplane.getVinf()[bplaneIdx], 2);
+            var ecc3Temp = 1 - 3*re/smaTemp;
+            var bc3Temp = -smaTemp*Math.sqrt(Math.pow(ecc3Temp, 2)-1);
+            bplaneMaxAbsVal[bplaneIdx] = Math.ceil(bc3Temp/re);
+		}	
+
+		var delta_Xi = 0;
+		var delta_Zeta = 0;
+		if (bplane.getPosCVel().length > bplaneIdx) {
+			var posCvel = bplane.getPosCVel()[bplaneIdx];
+//        	delta_Xi = posCvel[0][0] * DeltaV_RTN[0] + posCvel[0][1] * DeltaV_RTN[1] + posCvel[0][2] * DeltaV_RTN[2];   // with FPA rotation
+//			delta_Zeta = posCvel[1][0] * DeltaV_RTN[0] + posCvel[1][1] * DeltaV_RTN[1] + posCvel[1][2] * DeltaV_RTN[2]; // with FPA rotation
+			delta_Xi = posCvel[0][0] * va/1000000 + posCvel[0][1] * vc/1000000 + posCvel[0][2] * vn/1000000;  // without FPA rotation
+			delta_Zeta = posCvel[1][0] * va/1000000 + posCvel[1][1] * vc/1000000 + posCvel[1][2] * vn/1000000; // without FPA rotation
+            if (bplaneIdx === 0)
+                currentDisplacement = Math.sqrt(Math.pow(delta_Xi,2) + Math.pow(delta_Zeta,2))/re;
+		}
+
+		var needUpdate = true;
+		var pointDataIdx = ((bplane.getXi()[bplaneIdx]+delta_Xi)/re).toFixed(3) + " " + ((bplane.getZeta()[bplaneIdx]+delta_Zeta)/re).toFixed(3);
+		if ((bplaneLastPt[bplaneIdx] !== undefined && 
+             bplaneLastPt[bplaneIdx][0] === (bplane.getXi()[bplaneIdx]+delta_Xi)/re && 
+             bplaneLastPt[bplaneIdx][1] === (bplane.getZeta()[bplaneIdx]+delta_Zeta)/re) &&
+             (bplanePointData[bplaneIdx][pointDataIdx][0] === parseFloat(va).toFixed(3) && 
+             bplanePointData[bplaneIdx][pointDataIdx][1] === parseFloat(vc).toFixed(3) && 
+             bplanePointData[bplaneIdx][pointDataIdx][2] === parseFloat(vn).toFixed(3))) {
+			needUpdate = false;
+        }
+		if (needUpdate) {
+			if (bplaneChart.series[bplaneIdx].data.length > 1) {
+				bplaneChart.series[bplaneIdx].data[bplaneChart.series[bplaneIdx].data.length-1].update({marker: {fillColor: 'rgba(255, 255, 255, 0.1)', radius: 2.5, lineColor: '#8000A0', lineWidth:1, states: { hover: {fillColor: null}}}});
+            }
+			bplaneLastPt[bplaneIdx] = [(bplane.getXi()[bplaneIdx]+delta_Xi)/re, (bplane.getZeta()[bplaneIdx]+delta_Zeta)/re];
+			var color = '#00FF00';
+			bplaneChart.series[bplaneIdx].addPoint({x: (bplane.getXi()[bplaneIdx]+delta_Xi)/re, y: (bplane.getZeta()[bplaneIdx]+delta_Zeta)/re, marker: {fillColor: color, states: { hover: {fillColor: color}}}});
+			bplanePointData[bplaneIdx][pointDataIdx] = [parseFloat(va).toFixed(3), parseFloat(vc).toFixed(3), parseFloat(vn).toFixed(3)];
+		}
+
+        if (currBP === bplaneIdx) {
+            updateBPlaneBounds(false);
+            drawBPlaneElements();
+        }
+		if (bplaneIndices[bplaneIdx]) {
+			var sma = -mu_earth/Math.pow(bplane.getVinf()[bplaneIdx], 2);
+			var b = Math.sqrt(Math.pow(bplane.getXi()[bplaneIdx]+delta_Xi, 2) + Math.pow(bplane.getZeta()[bplaneIdx]+delta_Zeta, 2));
+			var ecc = Math.sqrt(Math.pow(b/sma, 2)+1);
+			var close_approach_dist = sma*(1-ecc);
+
+            bdotzetaText += ((bplane.getZeta()[bplaneIdx]+delta_Zeta)/re).toFixed(3);
+            bdotxiText += ((bplane.getXi()[bplaneIdx]+delta_Xi)/re).toFixed(3);
+            bmagnitudeText += (b/re).toFixed(3);
+            vinfinityText += bplane.getVinf()[bplaneIdx].toFixed(3);
+            vrelativeText += bplane.getVrel().toFixed(3);
+            phaseangleText += currentPhaseAngleDeg().toFixed(3);
+            periodText += (period/(60*60*24)).toFixed(3);
+            deltaPeriodText += deltaPeriod.toFixed(4);
+            closeapproachradiusText += (close_approach_dist/re).toFixed(3);
+            missdistanceText += (close_approach_dist/re - 1).toFixed(3);
+            currentBMag = b/re;
+            currentPerigeeDist = close_approach_dist/re;
+		}
+
+        $('deltavaout').update(Number(va).toFixed(3));
+        $('deltavcout').update(Number(vc).toFixed(3));
+        $('deltavnout').update(Number(vn).toFixed(3));
+		$('totaldeltav').update(Math.sqrt(Math.pow(va, 2) + Math.pow(vc, 2) + Math.pow(vn, 2)).toFixed(3));
+		$('bdotzeta').update(bdotzetaText);
+		$('bdotxi').update(bdotxiText);
+		$('bmagnitude').update(bmagnitudeText);
+		$('vinfinity').update(vinfinityText);
+		$('vrelative').update(vrelativeText);
+		$('phaseangle').update(phaseangleText);
+		$('orbitalperiodbefore').update(periodText);
+		$('orbitalperioddelta').update(deltaPeriodText);
+		$('closeapproachradius').update(closeapproachradiusText);
+        var missDist = close_approach_dist/re - 1;
+        $('missdistance').update((missDist).toFixed(3));
+        if (missDist <= 0) {
+            jQuery('#missdistbox').hide();
+            jQuery('#impactbox').show();
+        } else {
+            jQuery('#missdistbox').show();
+            jQuery('#impactbox').hide();            
+        }
+	}
+
+	drawBPlaneOutlier();
+}
+
+function computeDeliveredMass() {
+    var mass = 0;
+    
+    mass += computeDeliveredMassForVehicle(1);
+    if (isAdvancedMode()) {
+        mass += computeDeliveredMassForVehicle(2);
+        mass += computeDeliveredMassForVehicle(3);
+    }    
+    
+    if (mass > .001) {
+        $('massdelivered').update('<span style=\'color:green; font-weight:bold; font-size:larger\'>' + mass.toFixed(2) + ' kg</span>');
+        jQuery('#nosolution').hide();
+        jQuery('#c3box').show();
+        jQuery('#relvelocitybox').show();
+        jQuery('#phaseanglebox').show();
+        solutionPossible = true;
+    } else {
+        $('massdelivered').update('<span style=\'color:red; font-weight:bold; font-size:larger\'>NONE</span>');
+        jQuery('#nosolution').show();
+        jQuery('#c3box').hide();
+        jQuery('#relvelocitybox').hide();
+        jQuery('#phaseanglebox').hide();
+        solutionPossible = false;
+    }
+    return mass;
+}
+
+function computeDeliveredMassForVehicle(vehNum) {
+    var vehicle = $('vehicle'+vehNum).value;
+    var mass = 0;
+    var a = 0, b = 0, c = 0;        // a, b and c are not vehicle performance parameters.  Rather they are 
+                                    // coefficients to the equation a*e^-(((C3-b)/c)^2) that approximates plot data 
+                                    // based on vehicle performance.  Coefficients were provided by Jason Anderson.   
+    var C3 = bplane.getC3();
+    var t = 0;
+    if (vehicle === 'atlas551' || vehicle === 'delta4hvy' || vehicle === 'falconhvy') {                              
+        if (vehicle === 'atlas551') {
+            a = 28212.3495143119;
+            b = -167.415991010281;
+            c = 135.265849347349;
+        } else if ( vehicle === 'delta4hvy') {
+            a = 18997.2550244504;
+            b = -90.7381736882272;
+            c = 107.427243652611;
+        } else if ( vehicle === 'falconhvy') {
+            a = 91809.6027138598;
+            b = -205.900405993553;
+            c = 141.460983242676;        
+        } 
+        if (C3 > 100)  // don't extrapolate too far down the curve since the original data used for the curve fit was only for C3 < 60
+            mass = 0;
+        else
+            mass = a * Math.exp(-Math.pow((C3 - b) / c, 2)); 
+    } else if (vehicle === 'sls2b') {
+        if (C3 <= 100) {
+            a = 157952.023584938;
+            b = -173.173842129631;
+            c = 159.631771636071;        
+            mass = a * Math.exp(-Math.pow((C3 - b) / c, 2)); 
+        } else if (C3 > 158.62) {
+            mass = 0;
+        } else { // linear interpolation of the high end of the data fits the data better than the curve
+            t = (C3 - 100) / (150 - 100);  // how far between 100 and 150 is the C3  (the limit of 160 from above is extrapolated beyond the data)
+            mass = (1-t) * 8717.9487179 + t * 1282.0512821;  // linear interpolation
+        }
+    }
+    
+    mass *= $('numLaunches'+vehNum).value;
+        
+    return (mass > 0) ? mass : 0;  // total mass of interceptor impacts for this vehicle
+}
+
+var num_atlas5, num_delta4, num_falcon9;
+function lambertChange(objectDiameter, objectDensity, mass, beta) {
+    if (!extension1_useValues()) {
+        var V_mag = Math.sqrt(Math.pow(bplane.getVX(), 2) + Math.pow(bplane.getVY(), 2) + Math.pow(bplane.getVZ(), 2));
+        var V1_X = bplane.getVX()/V_mag;
+        var V1_Y = bplane.getVY()/V_mag;
+        var V1_Z = bplane.getVZ()/V_mag;
+        var H_X = bplane.getRY()*bplane.getVZ()-bplane.getRZ()*bplane.getVY();
+        var H_Y = bplane.getRZ()*bplane.getVX()-bplane.getRX()*bplane.getVZ();
+        var H_Z = bplane.getRX()*bplane.getVY()-bplane.getRY()*bplane.getVX();
+        var H_mag = Math.sqrt(Math.pow(H_X, 2) + Math.pow(H_Y, 2) + Math.pow(H_Z, 2));
+        var NX_norm = H_X/H_mag;
+        var NY_norm = H_Y/H_mag;
+        var NZ_norm = H_Z/H_mag;
+        var V3_X = NX_norm;
+        var V3_Y = NY_norm;
+        var V3_Z = NZ_norm;
+        var V2_X = V3_Y*V1_Z-V3_Z*V1_Y;
+        var V2_Y = V3_Z*V1_X-V3_X*V1_Z;
+        var V2_Z = V3_X*V1_Y-V3_Y*V1_X;
+        var VR_RTN = [V1_X*bplane.getVR_X()+V1_Y*bplane.getVR_Y()+V1_Z*bplane.getVR_Z(), V2_X*bplane.getVR_X()+V2_Y*bplane.getVR_Y()+V2_Z*bplane.getVR_Z(), V3_X*bplane.getVR_X()+V3_Y*bplane.getVR_Y()+V3_Z*bplane.getVR_Z()];
+        var VR_RTN_mag = Math.sqrt(Math.pow(VR_RTN[0], 2) + Math.pow(VR_RTN[1], 2) + Math.pow(VR_RTN[2], 2));
+        var VR_RTN_norm = [VR_RTN[0]/VR_RTN_mag, VR_RTN[1]/VR_RTN_mag, VR_RTN[2]/VR_RTN_mag];
+        var DV_mag = VR_RTN_mag*beta*mass/((Math.PI*Math.pow(objectDiameter, 3)/6)*objectDensity*Math.pow(10, 12));
+        var va = DV_mag*VR_RTN_norm[0]*1000000;
+        var vc = DV_mag*VR_RTN_norm[1]*1000000;
+        var vn = DV_mag*VR_RTN_norm[2]*1000000;
+        extension1_hideResults();
+    } else {
+        var dv = extension1_deltaV(objectDiameter*1000, Number(objectDensity), Number(beta));
+        var va = dv.va;
+        var vc = dv.vc;
+        var vn = dv.vn;
+        extension1_Results(dv);
+    }
+    
+    setDeltaValues(va,vc,vn);
+	deltaVChange(va, vc, vn, true);
+}
+
+function drawBPlaneElements() {
+    var len = 0;
+    
+	$('bplane-canvas-container').setStyle({
+		left: ($('bplane-chart-container').positionedOffset().left + bplaneChart.plotLeft) + "px",
+		top: bplaneChart.plotTop + "px"
+	});
+
+	if (bplaneCanvas) {
+//        var len = bplaneChartElements.length;
+        len = bplaneChartElements.length;
+        for (var i=0;i < len; i++) {
+            if (bplaneChartElements[i])  
+                bplaneChartElements[i].remove();
+        }
+		bplaneCanvas.clear();
+		bplaneChartElements.length = 0;
+		bplaneChartMaxZoomElements.length = 0;
+		bplaneCanvas.canvas.parentNode.removeChild(bplaneCanvas.canvas);
+	}
+	//bplaneCanvas = new Raphael($('bplane-chart-container').cumulativeOffset().left + bplaneChart.plotLeft, $('bplane-chart-container').cumulativeOffset().top + bplaneChart.plotTop, bplaneChart.plotWidth, bplaneChart.plotHeight);
+	bplaneCanvas = new Raphael('bplane-canvas-container', bplaneChart.plotWidth, bplaneChart.plotHeight);
+
+    var pw = bplaneChart.plotWidth+1;
+    var ph = bplaneChart.plotHeight+1;
+    var zoomW = bplaneXMax-bplaneXMin;
+    var zoomH = bplaneYMax-bplaneYMin;
+	var centerX = (-bplaneXMin/zoomW)*pw;
+	var centerY = (bplaneYMax/zoomH)*ph;
+    var viewCenterX = (bplaneXMax+bplaneXMin) / 2;
+    var viewCenterY = (bplaneYMax+bplaneYMin) / 2;
+	var radiusX = pw/zoomW;
+	var radiusY = ph/zoomH;
+    var elementCount = 0;
+    var cirStyle = [{fill: '#FFFFFF',stroke: '#FFC0CB','stroke-dasharray': '-','stroke-width': 1},   // 2r miss circle   
+                    {fill: '#FFFFFF',stroke: '#FFC0CB','stroke-dasharray': '-','stroke-width': 1},   // 1R miss circle
+                    {fill: '#FFF0F0',stroke: '#FF0000',                        'stroke-width': 2},   // Earth grazing circle  
+                    {fill: '#F0F0FF',stroke: '#A0A0FF','stroke-dasharray': '-','stroke-width': 1}];  // Earth circle
+    var fontAttribs = {  'fill' : 'black', 'font-size' : 12, 'text-anchor' : 'start'};
+    //text-anchor' : 'left'
+    
+	bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX, centerY, radiusX*bc3/re, radiusY*bc3/re).attr(cirStyle[0]);
+	bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX, centerY, radiusX*bc2/re, radiusY*bc2/re).attr(cirStyle[1]);
+	bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX, centerY, radiusX*bc1/re, radiusY*bc1/re).attr(cirStyle[2]);
+	bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX, centerY, radiusX, radiusY).attr(cirStyle[3]);
+    
+    var currBP = getCurrentBPIdx();
+    var tbi = bplane.getTBI();
+    var khZeta = bplane.getKeyHoleZetas();
+    var zetaCenter = 0;
+    var zetaRadius = 0;
+    var i;
+    var valsecciCirStyle = [{'fill-opacity': 0, fill: '#FF00FF', stroke: '#FF00FF',                        'stroke-width': 1 },
+                    {'fill-opacity': 0, fill: '#FF00FF', stroke: '#FF00FF',                        'stroke-width': 1 },
+                    {'fill-opacity': 0, fill: '#FFA0FF', stroke: '#FFC0FF','stroke-dasharray': '-','stroke-width': 1 },
+                    {'fill-opacity': 0, fill: '#FFA0FF', stroke: '#FFC0FF','stroke-dasharray': '-','stroke-width': 1 }]; 
+    var ang=0;
+    var x1 = 0, x2 = 0, y1 = 0, y2 = 0, x3 = 0, y3 = 0;
+    var angBound = 0; 
+    if (currBP !== 0 && khZeta) {
+        for (i = 1; i <= 4; i++) {
+            zetaCenter = khZeta[i][currBP] * radiusY / re;                      // converts to Raphael paper units
+            zetaRadius = Math.abs(zetaCenter);
+            ang = Math.atan2(khZeta[i][currBP] / re - viewCenterY,viewCenterX); // angle from center of the current Valsecchi circle to the center of the view
+            angBound = Math.abs(Math.asin(ph*1.415/2/zetaRadius));              // how much of an arc (half angle) could be visible in the window 
+            if (zetaCenter) {
+                if (!angBound || angBound > .05) {
+                    bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX, centerY-zetaCenter, zetaRadius, zetaRadius).attr(valsecciCirStyle[i-1]);
+                } else {
+                   // draw the lines manually to sidestep the inaccuracies of the Raphael ellipse renderer at extreme zoomed in views
+                    x1 = centerX + zetaRadius * Math.cos(ang-angBound);
+                    x2 = centerX + zetaRadius * Math.cos(ang);
+                    x3 = centerX + zetaRadius * Math.cos(ang+angBound);
+                    y1 = centerY - zetaCenter + zetaRadius * Math.sin(ang-angBound);
+                    y2 = centerY - zetaCenter + zetaRadius * Math.sin(ang);
+                    y3 = centerY - zetaCenter + zetaRadius * Math.sin(ang+angBound);
+                    bplaneChartElements[elementCount++] = bplaneCanvas.path("M" + x1 + " " + y1 + "L" + x2 + " " + y2 + "L" + x3 + " " + y3).attr(valsecciCirStyle[i-1]);
+                }
+                // debugging  bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX + zetaRadius * Math.cos(ang), centerY - zetaCenter + zetaRadius * Math.sin(ang), 3, 3).attr(cirStyle[0]);
+            }
+        }
+    }
+    // Draw Legend
+    var keyoriginx = 10;
+    var textoriginx = keyoriginx + 25;
+    var keyoriginy = bplaneChart.plotTop + bplaneChart.plotHeight - 85;
+    var circlekey = [];
+    if (currBP !== 0 && khZeta) {  // draw legend for keyhole
+        keyoriginy += 15;
+        circlekey = ['M', keyoriginx , keyoriginy, 'L', keyoriginx + 20, keyoriginy];
+        bplaneChartElements[elementCount++] = bplaneCanvas.path(circlekey).attr(valsecciCirStyle[0]);
+        bplaneChartElements[elementCount++] = bplaneCanvas.text(textoriginx, keyoriginy, "Earth intercept").attr(fontAttribs);
+        circlekey = ['M', keyoriginx , keyoriginy +15, 'L', keyoriginx + 20, keyoriginy + 15];
+        bplaneChartElements[elementCount++] = bplaneCanvas.path(circlekey).attr(valsecciCirStyle[2]);
+        bplaneChartElements[elementCount++] = bplaneCanvas.text(textoriginx, keyoriginy + 15, "1 Earth radius miss").attr(fontAttribs);       
+    } else {  // draw earth viewing legend
+        circlekey = ['M', keyoriginx , keyoriginy, 'L', keyoriginx + 20, keyoriginy];
+        bplaneChartElements[elementCount++] = bplaneCanvas.path(circlekey).attr(cirStyle[3]);
+        bplaneChartElements[elementCount++] = bplaneCanvas.text(textoriginx, keyoriginy, "Earth").attr(fontAttribs);;
+        circlekey = ['M', keyoriginx , keyoriginy +15, 'L', keyoriginx + 20, keyoriginy + 15];
+        bplaneChartElements[elementCount++] = bplaneCanvas.path(circlekey).attr(cirStyle[2]);
+        bplaneChartElements[elementCount++] = bplaneCanvas.text(textoriginx, keyoriginy + 15, "Earth Impact Boundary").attr(fontAttribs);
+        circlekey = ['M', keyoriginx , keyoriginy +30, 'L', keyoriginx + 20, keyoriginy + 30];
+        bplaneChartElements[elementCount++] = bplaneCanvas.path(circlekey).attr(cirStyle[1]);
+        bplaneChartElements[elementCount++] = bplaneCanvas.text(textoriginx, keyoriginy + 30, "1 & 2 Earth radius miss").attr(fontAttribs);
+    }
+    // debugging bplaneChartElements[elementCount++] = bplaneCanvas.ellipse(centerX + bplane.getXi()[currBP] * radiusY / re, centerY-bplane.getZeta()[currBP] * radiusY / re, 3, 3).attr(cirStyle[0]);
+    var td = getTdDays();
+    if (currBP < tbi.length) {
+        if (td < tbi[currBP]) {
+            bplaneChartElements[elementCount++] = bplaneCanvas.text(bplaneChart.plotWidth/2, bplaneChart.plotHeight - 60, "B-Plane intercept occurs\n before deflection!").attr({
+                'fill' : 'red',
+                'text-anchor' : 'middle',
+                'font-size' : 16
+            }); 
+        }
+    }
+}
+
+function getCurrentBPIdx() {
+    var currBPIdx = 0;
+    var len = bplane.getXi().length;
+    for (var i = 0; i < len; i++) {
+        if (bplaneIndices[i] === true) {
+           currBPIdx = i;
+           break;
+        }
+    }    
+    return currBPIdx;
+}
+
+function drawBPlaneOutlier(x, y) {
+    var len = bplaneChartMaxZoomElements.length;
+	for (var i = 0; i < len; ++i) {
+		bplaneChartMaxZoomElements[i].remove();
+	}
+	bplaneChartMaxZoomElements.length = 0;
+
+	var onlyOne = true;
+	if (x === undefined)
+		onlyOne = false;
+
+	var elementCount = 0;
+
+    len = bplaneIndices.length;
+	for (i = 0; i < len; i++) {
+		if (!onlyOne) {
+			if (!bplaneIndices[i])
+				continue;
+			x = bplaneLastPt[i][0];
+			y = bplaneLastPt[i][1];
+		}
+
+		if (x < bplaneXMin || x > bplaneXMax || y < bplaneYMin || y > bplaneYMax) {
+			var midX = (bplaneXMax+bplaneXMin)/2;
+			var midY = (bplaneYMax+bplaneYMin)/2;
+			var ang = Math.atan2(y-midY, x-midX); // angle from center point of view
+			var startX = Math.cos(ang);
+			var startY = -Math.sin(ang);
+			var endX = (1+startX)*bplaneChart.plotWidth/2;
+			var endY = (1+startY)*bplaneChart.plotHeight/2;
+			bplaneChartMaxZoomElements[elementCount++] = bplaneCanvas.text(Math.round((1+startX*11/25)*bplaneChart.plotWidth/2), Math.round((1+startY*11/25)*bplaneChart.plotHeight/2), "Out of view!");
+			bplaneChartMaxZoomElements[elementCount++] = bplaneCanvas.path("M" + Math.round((1+startX/2)*bplaneChart.plotWidth/2) + " " + Math.round((1+startY/2)*bplaneChart.plotHeight/2) + "L" + Math.round(endX) + " " + Math.round(endY)).attr({
+				stroke: '#00FF00',
+				'stroke-width': 1
+			});
+			var angArrow = ang + 165*Math.PI/180;
+			var arrowHeadPath = "M" + Math.round(endX) + " " + Math.round(endY);
+			endX = endX+Math.cos(angArrow)*bplaneChart.plotWidth/20;
+			endY = endY-Math.sin(angArrow)*bplaneChart.plotHeight/20;
+			arrowHeadPath += "L" + Math.round(endX) + " " + Math.round(endY);
+			angArrow += 105*Math.PI/180;
+			endX = endX+Math.cos(angArrow)*bplaneChart.plotWidth/40;
+			endY = endY-Math.sin(angArrow)*bplaneChart.plotHeight/40;
+			arrowHeadPath += "L" + Math.round(endX) + " " + Math.round(endY);
+			angArrow += 105*Math.PI/180;
+			endX = endX+Math.cos(angArrow)*bplaneChart.plotWidth/20;
+			endY = endY-Math.sin(angArrow)*bplaneChart.plotHeight/20;
+			arrowHeadPath += "L" + Math.round(endX) + " " + Math.round(endY);
+			bplaneChartMaxZoomElements[elementCount++] = bplaneCanvas.path(arrowHeadPath).attr({
+				fill: '#00FF00',
+				stroke: '#00FF00',
+				'stroke-width': 1
+			});
+		}
+
+		if (onlyOne)
+			break;
+	}
+}

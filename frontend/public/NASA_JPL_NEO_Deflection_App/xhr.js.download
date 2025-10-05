@@ -1,0 +1,29 @@
+function getXMLHTTPRequest() {
+
+	xmlReq = false;
+
+	// branch for native XMLHttpRequest object
+	if(window.XMLHttpRequest && !(window.ActiveXObject)) {
+		try {
+			xmlReq = new XMLHttpRequest();
+		} 
+		catch(e) {
+			xmlReq = false;
+		}
+	} 
+	else if(window.ActiveXObject) {
+		// branch for IE/Windows ActiveX version
+		try {
+			xmlReq = new ActiveXObject("Msxml2.XMLHTTP");
+		} 
+		catch(e) {
+			try {
+				xmlReq = new ActiveXObject("Microsoft.XMLHTTP");
+			} 
+			catch(e) {
+				xmlReq = false;
+			}
+		}
+	}
+	return(xmlReq);
+}
